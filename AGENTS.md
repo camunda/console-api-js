@@ -35,6 +35,7 @@ It is **not** part of the Orchestration Cluster API SDKs. The Console API is the
 - Facade method arguments: path parameters in URL order, then the request body. The surface test relies on this.
 - New spec operation: add a method and an `OPERATION_METHODS` entry in the same PR as the spec refresh, then regenerate (`chore(gen): regenerate for ...` as a separate commit).
 - Never retry non-idempotent methods (POST, PATCH) on 5xx or network errors; only 429 is safe for them.
+- Schema validation failures are `ConsoleApiValidationError` (phase `request` or `response`), never an HTTP error, and never carry payload values: Console responses can contain connector secrets. Covered for every operation by `tests/validation-errors.test.ts`.
 - Environment variable names stay compatible with `@camunda8/sdk` (`CAMUNDA_CONSOLE_*`).
 
 ### Commands
