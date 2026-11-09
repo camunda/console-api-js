@@ -9,6 +9,7 @@ import { ConsoleClient } from '../src/client';
 import { ConsoleApiConfigError, resolveConfig } from '../src/config';
 
 // A throwaway CA and a localhost leaf certificate it signs, generated per run.
+// Requires an `openssl` binary on PATH; the suite is skipped when it is missing.
 let dir: string;
 let caPem: string;
 let leafPem: string;
@@ -20,7 +21,17 @@ function openssl(...args: string[]) {
   execFileSync('openssl', args, { cwd: dir, stdio: 'pipe' });
 }
 
+const hasOpenssl = (() => {
+  try {
+    execFileSync('openssl', ['version'], { stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
+})();
+
 beforeAll(async () => {
+  if (!hasOpenssl) return;
   dir = mkdtempSync(join(tmpdir(), 'console-api-tls-'));
   openssl(
     'req',
@@ -87,13 +98,17 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await new Promise((r) => server?.close(r));
-  rmSync(dir, { recursive: true, force: true });
+  if (server?.listening) {
+    await new Promise<void>((r) => server.close(() => r()));
+  }
+  if (dir) {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 const creds = { CAMUNDA_CONSOLE_CLIENT_ID: 'a', CAMUNDA_CONSOLE_CLIENT_SECRET: 'b' };
 
-describe('custom root certificate config', () => {
+describe.skipIf(!hasOpenssl)('custom root certificate config', () => {
   it('reads the PEM from CAMUNDA_CUSTOM_ROOT_CERT_STRING', () => {
     const c = resolveConfig({}, { ...creds, CAMUNDA_CUSTOM_ROOT_CERT_STRING: caPem });
     expect(c.customRootCert).toBe(caPem);
@@ -156,7 +171,7 @@ describe('custom root certificate config', () => {
   });
 });
 
-describe('custom root certificate transport (local HTTPS server)', () => {
+describe.skipIf(!hasOpenssl)('custom root certificate transport (local HTTPS server)', () => {
   const client = (extra: Record<string, string>) =>
     new ConsoleClient({
       env: {
@@ -181,5 +196,34 @@ describe('custom root certificate transport (local HTTPS server)', () => {
   it('fails without the custom root', async () => {
     const c = client({});
     await expect(c.getClusters()).rejects.toThrow();
+  });
+});
+
+describe('withCustomRootCert dispatcher handling', () => {
+  it('lets a caller-supplied per-request dispatcher win over the custom-root one', async () => {
+    const { Agent } = await import('undici');
+    const { withCustomRootCert } = await import('../src/tls');
+    const callerDispatcher = new Agent();
+    let seen: unknown;
+    const fakeFetch = (async (_input: unknown, init?: { dispatcher?: unknown }) => {
+      seen = init?.dispatcher;
+      return new Response('[]');
+    }) as typeof fetch;
+    const wrapped = withCustomRootCert(fakeFetch, 'placeholder');
+    await wrapped('https://example.test', { dispatcher: callerDispatcher } as never);
+    expect(seen).toBe(callerDispatcher);
+    await callerDispatcher.close();
+  });
+
+  it('applies the custom-root dispatcher when the caller supplies none', async () => {
+    const { withCustomRootCert } = await import('../src/tls');
+    let seen: unknown;
+    const fakeFetch = (async (_input: unknown, init?: { dispatcher?: unknown }) => {
+      seen = init?.dispatcher;
+      return new Response('[]');
+    }) as typeof fetch;
+    const wrapped = withCustomRootCert(fakeFetch, 'placeholder');
+    await wrapped('https://example.test');
+    expect(seen).toBeDefined();
   });
 });
