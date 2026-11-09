@@ -14,6 +14,8 @@ interface TransportOptions extends RetryOptions {
   tokens: Pick<TokenProvider, 'getToken' | 'invalidate'>;
   sleep?: (ms: number) => Promise<void>;
   random?: () => number;
+  /** Value for the `User-Agent` header. */
+  userAgent?: string;
 }
 
 const IDEMPOTENT = new Set(['GET', 'HEAD', 'PUT', 'DELETE', 'OPTIONS']);
@@ -34,7 +36,7 @@ export function parseRetryAfter(value: string | null, now = Date.now()): number 
 /**
  * Wrap fetch with Console API transport behaviour:
  *
- * - adds `Authorization: Bearer <token>` to every request;
+ * - sets `User-Agent` (when given) and adds `Authorization: Bearer <token>` to every request;
  * - on 401, drops the cached token and retries once with a fresh one;
  * - retries 429 for any method (the request was not processed), honouring Retry-After;
  * - retries 502/503/504 and network errors only for idempotent methods, so a POST that may
@@ -49,6 +51,7 @@ export function createConsoleFetch(options: TransportOptions): typeof fetch {
     maxDelayMs = 10_000,
     sleep = defaultSleep,
     random = Math.random,
+    userAgent,
   } = options;
 
   const backoff = (attempt: number) =>
@@ -62,6 +65,7 @@ export function createConsoleFetch(options: TransportOptions): typeof fetch {
 
     for (;;) {
       const request = original.clone();
+      if (userAgent) request.headers.set('user-agent', userAgent);
       request.headers.set('authorization', `Bearer ${await tokens.getToken()}`);
 
       let response: Response;

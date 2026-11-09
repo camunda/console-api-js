@@ -10,6 +10,7 @@ import { type Client, createClient } from './gen/client';
 import * as api from './gen/sdk.gen';
 import type * as T from './gen/types.gen';
 import { createConsoleFetch, type RetryOptions } from './transport';
+import { buildUserAgent } from './version';
 
 // operationId for each generated SDK function, keyed by the function object. Uses export names
 // rather than Function.name, which bundlers may rename.
@@ -106,6 +107,7 @@ export class ConsoleClient {
         fetch: fetchImpl,
         tokens: this.tokens,
         maxRetries: this.config.maxRetries,
+        userAgent: buildUserAgent(this.config.userAgent),
         ...retry,
       }),
     });

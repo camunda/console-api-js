@@ -1,4 +1,5 @@
 import type { ConsoleApiConfig } from './config';
+import { buildUserAgent } from './version';
 
 export class ConsoleApiAuthError extends Error {
   constructor(
@@ -28,7 +29,7 @@ export class TokenProvider {
   constructor(
     private readonly config: Pick<
       ConsoleApiConfig,
-      'clientId' | 'clientSecret' | 'oauthUrl' | 'audience'
+      'clientId' | 'clientSecret' | 'oauthUrl' | 'audience' | 'userAgent'
     >,
     private readonly fetchImpl: typeof fetch = globalThis.fetch,
     private readonly now: () => number = Date.now
@@ -62,6 +63,7 @@ export class TokenProvider {
         headers: {
           'content-type': 'application/x-www-form-urlencoded',
           accept: 'application/json',
+          'user-agent': buildUserAgent(this.config.userAgent),
         },
         body,
       });
