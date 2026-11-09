@@ -110,6 +110,23 @@ afterAll(async () => {
 const creds = { CAMUNDA_CONSOLE_CLIENT_ID: 'a', CAMUNDA_CONSOLE_CLIENT_SECRET: 'b' };
 
 describe.skipIf(!hasOpenssl)('custom root certificate config', () => {
+  it('an explicit customRootCert wins over an inherited (even unreadable) env path', () => {
+    const c = resolveConfig(
+      { customRootCert: caPem },
+      { ...creds, CAMUNDA_CUSTOM_ROOT_CERT_PATH: join(dir, 'missing.pem') }
+    );
+    expect(c.customRootCert).toBe(caPem);
+    expect(c.customRootCertPath).toBeUndefined();
+  });
+
+  it('an explicit customRootCertPath wins over the env path', () => {
+    const c = resolveConfig(
+      { customRootCertPath: caPath },
+      { ...creds, CAMUNDA_CUSTOM_ROOT_CERT_PATH: join(dir, 'missing.pem') }
+    );
+    expect(c.customRootCert).toBe(caPem);
+  });
+
   it('reads the PEM from CAMUNDA_CUSTOM_ROOT_CERT_STRING', () => {
     const c = resolveConfig({}, { ...creds, CAMUNDA_CUSTOM_ROOT_CERT_STRING: caPem });
     expect(c.customRootCert).toBe(caPem);

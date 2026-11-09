@@ -84,15 +84,17 @@ function parseNonNegativeInt(name: string, value: string | undefined): number | 
 }
 
 /**
- * Resolve the custom root certificate. The path wins over the inline string, matching
- * `@camunda8/sdk`. Returns the PEM and the absolute path it was read from (if any).
+ * Resolve the custom root certificate. Explicit options win over the environment; within
+ * each source the path wins over the inline string, matching `@camunda8/sdk`. Returns the PEM and the absolute path it was read from (if any).
  */
 function resolveCustomRootCert(
   options: Partial<ConsoleApiConfig>,
   pick: (...names: string[]) => string | undefined,
   warn: (message: string) => void
 ): { customRootCert?: string; customRootCertPath?: string } {
-  const pathOption = options.customRootCertPath ?? pick('CAMUNDA_CUSTOM_ROOT_CERT_PATH');
+  // Explicit options win over the environment; within each source the path wins over the string.
+  const explicit = options.customRootCertPath !== undefined || options.customRootCert !== undefined;
+  const pathOption = explicit ? options.customRootCertPath : pick('CAMUNDA_CUSTOM_ROOT_CERT_PATH');
   let pem: string | undefined;
   let absPath: string | undefined;
   if (pathOption) {
@@ -110,7 +112,7 @@ function resolveCustomRootCert(
       );
     }
   } else {
-    pem = options.customRootCert ?? pick('CAMUNDA_CUSTOM_ROOT_CERT_STRING');
+    pem = explicit ? options.customRootCert : pick('CAMUNDA_CUSTOM_ROOT_CERT_STRING');
   }
   if (!pem) return {};
   let cert: X509Certificate;
