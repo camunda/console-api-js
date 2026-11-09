@@ -1,0 +1,21 @@
+name: Upstream spec drift
+
+# The Console API spec is published by the SaaS service, not versioned in a repo, so it can
+# change at any time. Check daily and fail visibly when the published spec differs from the
+# committed snapshot.
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  spec-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: "npm"
+      - run: npm ci
+      - run: npm run spec:check

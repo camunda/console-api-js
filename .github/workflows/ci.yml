@@ -1,0 +1,40 @@
+name: PR & Branch CI
+
+on:
+  push:
+    branches-ignore:
+      - main
+      - "stable/**"
+  pull_request:
+    branches:
+      - main
+      - "stable/**"
+
+jobs:
+  commitlint:
+    if: github.event_name == 'pull_request'
+    uses: camunda/sdk-infra/.github/workflows/sdk-commitlint.yml@v1
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: "npm"
+      - run: npm ci
+      # Regenerating from the COMMITTED spec snapshot must reproduce the committed src/gen.
+      # A generator bump (e.g. Renovate on @hey-api/openapi-ts) must land with its regenerated output.
+      - name: Generation drift
+        run: |
+          npm run generate
+          git diff --exit-code -- src/gen || {
+            echo '::error::src/gen is out of date. Run `npm run generate` and commit the result.'
+            exit 1
+          }
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
