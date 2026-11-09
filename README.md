@@ -68,7 +68,7 @@ const consoleApi = createConsoleClient({
 
 Explicit options override environment variables. The variable names are the same as in `@camunda8/sdk`.
 
-Every request, including the OAuth token request, carries `User-Agent: camunda8-console-api-js/<version>`. `userAgent` is appended after a space, for example `camunda8-console-api-js/1.2.0 my-app/1.0`.
+Every request, including the OAuth token request, carries `User-Agent: camunda8-console-api-js/<version>`. `userAgent` is appended after a space, for example `camunda8-console-api-js/1.2.0 my-app/1.0`. Browsers treat `User-Agent` as a forbidden request header and silently drop it (no error), so it is only guaranteed in Node.js and other server runtimes.
 
 ## Behaviour
 

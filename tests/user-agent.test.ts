@@ -41,6 +41,7 @@ describe('User-Agent', () => {
       { userAgent: 'opt/1' },
       { CAMUNDA_CUSTOM_USER_AGENT_STRING: 'env/1' }
     );
+    expect(ua.token).toBe(`${USER_AGENT_PRODUCT} opt/1`);
     expect(ua.api).toBe(`${USER_AGENT_PRODUCT} opt/1`);
   });
 });

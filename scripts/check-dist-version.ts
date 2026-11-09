@@ -4,10 +4,20 @@
  */
 import { readFileSync } from 'node:fs';
 
-const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
+const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+const { version } = pkg;
+// Resolve the published entry points from package.json rather than hard-coding tsup's file names.
+const entry = pkg.exports?.['.'] ?? {};
+const files = [...new Set([entry.import, entry.require, pkg.module, pkg.main].filter(Boolean))].map(
+  (f: string) => f.replace(/^\.\//, '')
+);
+if (files.length === 0) {
+  console.error('package.json declares no entry points to check');
+  process.exit(1);
+}
 const expected = `camunda8-console-api-js/${version}`;
 let failed = false;
-for (const file of ['dist/index.js', 'dist/index.cjs']) {
+for (const file of files) {
   const mod = await import(new URL(`../${file}`, import.meta.url).href);
   const ua: string = mod.USER_AGENT_PRODUCT ?? mod.default?.USER_AGENT_PRODUCT;
   if (ua !== expected) {
