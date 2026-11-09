@@ -7,6 +7,7 @@ import { join, relative } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ConsoleClient } from '../src/client';
 import { ConsoleApiConfigError, resolveConfig } from '../src/config';
+import { buildCaList } from '../src/tls';
 
 // A throwaway CA and a localhost leaf certificate it signs, generated per run.
 // Requires an `openssl` binary on PATH; the suite is skipped when it is missing.
@@ -225,5 +226,31 @@ describe('withCustomRootCert dispatcher handling', () => {
     const wrapped = withCustomRootCert(fakeFetch, 'placeholder');
     await wrapped('https://example.test');
     expect(seen).toBeDefined();
+  });
+});
+
+describe('custom root certificate edge cases (no openssl needed)', () => {
+  it('rejects an empty certificate file instead of silently ignoring it', () => {
+    const d = mkdtempSync(join(tmpdir(), 'console-api-empty-ca-'));
+    try {
+      for (const body of ['', '  \n']) {
+        const p = join(d, 'empty.pem');
+        writeFileSync(p, body);
+        expect(() => resolveConfig({}, { ...creds, CAMUNDA_CUSTOM_ROOT_CERT_PATH: p })).toThrow(
+          ConsoleApiConfigError
+        );
+      }
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps NODE_EXTRA_CA_CERTS / default CAs in the trust list', async () => {
+    const tls = await import('node:tls');
+    const list = buildCaList('CUSTOM');
+    expect(list[0]).toBe('CUSTOM');
+    const getCA = (tls as { getCACertificates?: (s: string) => string[] }).getCACertificates;
+    const defaults = typeof getCA === 'function' ? getCA('default') : tls.rootCertificates;
+    for (const c of defaults) expect(list).toContain(c);
   });
 });

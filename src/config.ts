@@ -104,6 +104,11 @@ function resolveCustomRootCert(
         `Cannot read custom root certificate at ${absPath} (CAMUNDA_CUSTOM_ROOT_CERT_PATH): ${(e as Error).message}`
       );
     }
+    if (pem.trim() === '') {
+      throw new ConsoleApiConfigError(
+        `Custom root certificate at ${absPath} (CAMUNDA_CUSTOM_ROOT_CERT_PATH) is empty`
+      );
+    }
   } else {
     pem = options.customRootCert ?? pick('CAMUNDA_CUSTOM_ROOT_CERT_STRING');
   }
