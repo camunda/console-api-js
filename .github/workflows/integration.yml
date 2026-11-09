@@ -49,3 +49,15 @@ jobs:
           CAMUNDA_CONSOLE_CLIENT_ID: ${{ secrets.CAMUNDA_CONSOLE_CLIENT_ID }}
           CAMUNDA_CONSOLE_CLIENT_SECRET: ${{ secrets.CAMUNDA_CONSOLE_CLIENT_SECRET }}
         run: npm run test:integration
+
+  notify-failure:
+    needs: [integration]
+    if: ${{ always() && contains(needs.*.result, 'failure') }}
+    permissions: {}
+    uses: camunda/sdk-infra/.github/workflows/sdk-slack-notify.yml@v1
+    with:
+      repo-name: console-api-js
+      workflow-name: Integration (live SaaS)
+      mention-group: ${{ vars.SLACK_MENTION_GROUP }}
+    secrets:
+      slack-webhook-url: ${{ secrets.SLACK_SDK_ALERTS }}

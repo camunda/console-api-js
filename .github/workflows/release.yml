@@ -73,3 +73,15 @@ jobs:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           NPM_CONFIG_PROVENANCE: true
         run: NODE_AUTH_TOKEN="" npx semantic-release
+
+  notify-release-failure:
+    needs: [release]
+    if: ${{ always() && contains(needs.*.result, 'failure') }}
+    permissions: {}
+    uses: camunda/sdk-infra/.github/workflows/sdk-slack-notify.yml@v1
+    with:
+      repo-name: console-api-js
+      workflow-name: Release
+      mention-group: ${{ vars.SLACK_MENTION_GROUP }}
+    secrets:
+      slack-webhook-url: ${{ secrets.SLACK_SDK_ALERTS }}

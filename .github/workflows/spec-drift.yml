@@ -22,3 +22,15 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npm run spec:check
+
+  notify-failure:
+    needs: [spec-check]
+    if: ${{ always() && contains(needs.*.result, 'failure') }}
+    permissions: {}
+    uses: camunda/sdk-infra/.github/workflows/sdk-slack-notify.yml@v1
+    with:
+      repo-name: console-api-js
+      workflow-name: Upstream spec drift
+      mention-group: ${{ vars.SLACK_MENTION_GROUP }}
+    secrets:
+      slack-webhook-url: ${{ secrets.SLACK_SDK_ALERTS }}
