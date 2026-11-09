@@ -1,10 +1,21 @@
 import { TokenProvider } from './auth';
 import { type ConsoleApiConfig, resolveConfig } from './config';
-import { ConsoleApiError } from './errors';
+import {
+  ConsoleApiError,
+  ConsoleApiValidationError,
+  isSchemaError,
+  toValidationIssues,
+} from './errors';
 import { type Client, createClient } from './gen/client';
 import * as api from './gen/sdk.gen';
 import type * as T from './gen/types.gen';
 import { createConsoleFetch, type RetryOptions } from './transport';
+
+// operationId for each generated SDK function, keyed by the function object. Uses export names
+// rather than Function.name, which bundlers may rename.
+const OPERATION_IDS = new Map<unknown, string>(
+  Object.entries(api).map(([name, fn]) => [fn, name.charAt(0).toUpperCase() + name.slice(1)])
+);
 
 export interface ConsoleClientOptions extends Partial<ConsoleApiConfig> {
   /** Custom fetch implementation (for proxies, tests, or custom TLS). Defaults to global fetch. */
@@ -104,15 +115,38 @@ export class ConsoleClient {
     operation: (options: any) => Promise<Result>,
     options: Record<string, unknown> = {}
   ): Promise<R> {
+    const operationId = OPERATION_IDS.get(operation) ?? 'unknown operation';
     const overrides: Record<string, unknown> = {};
     if (!this.config.validateRequests) overrides.requestValidator = undefined;
     if (!this.config.validateResponses) overrides.responseValidator = undefined;
-    const result = await operation({
-      ...options,
-      ...overrides,
-      client: this.client,
-      throwOnError: false,
-    });
+    let result: Result;
+    try {
+      result = await operation({
+        ...options,
+        ...overrides,
+        client: this.client,
+        throwOnError: false,
+      });
+    } catch (e) {
+      // Older generated clients let the request validator throw directly.
+      if (isSchemaError(e)) {
+        throw new ConsoleApiValidationError('request', operationId, toValidationIssues(e));
+      }
+      throw e;
+    }
+    // Request validation runs before sending, so a schema error without a response is a request
+    // validation failure.
+    if (!result.response && isSchemaError(result.error)) {
+      throw new ConsoleApiValidationError('request', operationId, toValidationIssues(result.error));
+    }
+    if (result.response?.ok && isSchemaError(result.error)) {
+      throw new ConsoleApiValidationError(
+        'response',
+        operationId,
+        toValidationIssues(result.error),
+        result.response.status
+      );
+    }
     if (result.error !== undefined || (result.response && !result.response.ok)) {
       throw ConsoleApiError.from(result.request, result.response, result.error);
     }
