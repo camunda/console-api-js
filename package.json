@@ -73,5 +73,9 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "overrides": {
+    "js-yaml@4": "4.3.2",
+    "esbuild@0.27": "0.28.2"
   }
 }
