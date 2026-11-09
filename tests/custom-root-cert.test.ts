@@ -1,0 +1,185 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer, type Server } from 'node:https';
+import type { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join, relative } from 'node:path';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { ConsoleClient } from '../src/client';
+import { ConsoleApiConfigError, resolveConfig } from '../src/config';
+
+// A throwaway CA and a localhost leaf certificate it signs, generated per run.
+let dir: string;
+let caPem: string;
+let leafPem: string;
+let caPath: string;
+let server: Server;
+let baseUrl: string;
+
+function openssl(...args: string[]) {
+  execFileSync('openssl', args, { cwd: dir, stdio: 'pipe' });
+}
+
+beforeAll(async () => {
+  dir = mkdtempSync(join(tmpdir(), 'console-api-tls-'));
+  openssl(
+    'req',
+    '-x509',
+    '-newkey',
+    'rsa:2048',
+    '-nodes',
+    '-keyout',
+    'ca.key',
+    '-out',
+    'ca.pem',
+    '-days',
+    '1',
+    '-subj',
+    '/CN=console-api test CA'
+  );
+  openssl(
+    'req',
+    '-newkey',
+    'rsa:2048',
+    '-nodes',
+    '-keyout',
+    'leaf.key',
+    '-out',
+    'leaf.csr',
+    '-subj',
+    '/CN=localhost'
+  );
+  writeFileSync(join(dir, 'ext.cnf'), 'subjectAltName=DNS:localhost,IP:127.0.0.1\n');
+  openssl(
+    'x509',
+    '-req',
+    '-in',
+    'leaf.csr',
+    '-CA',
+    'ca.pem',
+    '-CAkey',
+    'ca.key',
+    '-CAcreateserial',
+    '-out',
+    'leaf.pem',
+    '-days',
+    '1',
+    '-extfile',
+    'ext.cnf'
+  );
+  caPath = join(dir, 'ca.pem');
+  caPem = readFileSync(caPath, 'utf8');
+  leafPem = readFileSync(join(dir, 'leaf.pem'), 'utf8');
+
+  server = createServer({ key: readFileSync(join(dir, 'leaf.key')), cert: leafPem }, (req, res) => {
+    res.setHeader('content-type', 'application/json');
+    if (req.url === '/oauth/token') {
+      res.end(JSON.stringify({ access_token: 'tls-token', expires_in: 3600 }));
+    } else if (req.headers.authorization === 'Bearer tls-token') {
+      res.end(JSON.stringify([]));
+    } else {
+      res.statusCode = 401;
+      res.end('{}');
+    }
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  baseUrl = `https://localhost:${(server.address() as AddressInfo).port}`;
+});
+
+afterAll(async () => {
+  await new Promise((r) => server?.close(r));
+  rmSync(dir, { recursive: true, force: true });
+});
+
+const creds = { CAMUNDA_CONSOLE_CLIENT_ID: 'a', CAMUNDA_CONSOLE_CLIENT_SECRET: 'b' };
+
+describe('custom root certificate config', () => {
+  it('reads the PEM from CAMUNDA_CUSTOM_ROOT_CERT_STRING', () => {
+    const c = resolveConfig({}, { ...creds, CAMUNDA_CUSTOM_ROOT_CERT_STRING: caPem });
+    expect(c.customRootCert).toBe(caPem);
+    expect(c.customRootCertPath).toBeUndefined();
+  });
+
+  it('reads the PEM from CAMUNDA_CUSTOM_ROOT_CERT_PATH, resolving relative paths against cwd', () => {
+    const rel = relative(process.cwd(), caPath);
+    const c = resolveConfig({}, { ...creds, CAMUNDA_CUSTOM_ROOT_CERT_PATH: rel });
+    expect(c.customRootCert).toBe(caPem);
+    expect(c.customRootCertPath).toBe(caPath);
+  });
+
+  it('prefers the path over the string', () => {
+    const c = resolveConfig(
+      {},
+      { ...creds, CAMUNDA_CUSTOM_ROOT_CERT_PATH: caPath, CAMUNDA_CUSTOM_ROOT_CERT_STRING: leafPem },
+      () => {}
+    );
+    expect(c.customRootCert).toBe(caPem);
+  });
+
+  it('explicit options win over the environment', () => {
+    const c = resolveConfig(
+      { customRootCert: caPem },
+      { ...creds, CAMUNDA_CUSTOM_ROOT_CERT_STRING: leafPem }
+    );
+    expect(c.customRootCert).toBe(caPem);
+  });
+
+  it('throws ConsoleApiConfigError for an unreadable path', () => {
+    expect(() =>
+      resolveConfig({}, { ...creds, CAMUNDA_CUSTOM_ROOT_CERT_PATH: join(dir, 'missing.pem') })
+    ).toThrow(ConsoleApiConfigError);
+    expect(() =>
+      resolveConfig({}, { ...creds, CAMUNDA_CUSTOM_ROOT_CERT_PATH: join(dir, 'missing.pem') })
+    ).toThrow(/missing\.pem/);
+  });
+
+  it('throws ConsoleApiConfigError for content that is not a certificate', () => {
+    expect(() =>
+      resolveConfig({}, { ...creds, CAMUNDA_CUSTOM_ROOT_CERT_STRING: 'not a cert' })
+    ).toThrow(ConsoleApiConfigError);
+  });
+
+  it('warns when the certificate is not self-issued, and not for a root', () => {
+    const warn = vi.fn();
+    resolveConfig({}, { ...creds, CAMUNDA_CUSTOM_ROOT_CERT_STRING: leafPem }, warn);
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0][0]).toMatch(/not self-issued/);
+    warn.mockClear();
+    resolveConfig({}, { ...creds, CAMUNDA_CUSTOM_ROOT_CERT_STRING: caPem }, warn);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('leaves the config unchanged when no cert is configured', () => {
+    const c = resolveConfig({}, creds);
+    expect('customRootCert' in c).toBe(false);
+    expect('customRootCertPath' in c).toBe(false);
+  });
+});
+
+describe('custom root certificate transport (local HTTPS server)', () => {
+  const client = (extra: Record<string, string>) =>
+    new ConsoleClient({
+      env: {
+        ...creds,
+        CAMUNDA_CONSOLE_BASE_URL: baseUrl,
+        CAMUNDA_CONSOLE_OAUTH_URL: `${baseUrl}/oauth/token`,
+        ...extra,
+      },
+      maxRetries: 0,
+    });
+
+  it('token and API requests succeed with the custom root configured', async () => {
+    const c = client({ CAMUNDA_CUSTOM_ROOT_CERT_PATH: caPath });
+    await expect(c.getClusters()).resolves.toEqual([]);
+  });
+
+  it('works with the inline string too', async () => {
+    const c = client({ CAMUNDA_CUSTOM_ROOT_CERT_STRING: caPem });
+    await expect(c.getClusters()).resolves.toEqual([]);
+  });
+
+  it('fails without the custom root', async () => {
+    const c = client({});
+    await expect(c.getClusters()).rejects.toThrow();
+  });
+});

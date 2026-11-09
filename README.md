@@ -53,18 +53,22 @@ const consoleApi = createConsoleClient({
 
 ## Configuration
 
-| Option              | Environment variable                                  | Default                                      |
-| ------------------- | ----------------------------------------------------- | -------------------------------------------- |
-| `clientId`          | `CAMUNDA_CONSOLE_CLIENT_ID`                           | required                                     |
-| `clientSecret`      | `CAMUNDA_CONSOLE_CLIENT_SECRET`                       | required                                     |
-| `baseUrl`           | `CAMUNDA_CONSOLE_BASE_URL`                            | `https://api.cloud.camunda.io`               |
-| `oauthUrl`          | `CAMUNDA_CONSOLE_OAUTH_URL`, then `CAMUNDA_OAUTH_URL` | `https://login.cloud.camunda.io/oauth/token` |
-| `audience`          | `CAMUNDA_CONSOLE_OAUTH_AUDIENCE`                      | `api.cloud.camunda.io`                       |
-| `validateRequests`  | `CAMUNDA_CONSOLE_VALIDATE_REQUESTS`                   | `true`                                       |
-| `validateResponses` | `CAMUNDA_CONSOLE_VALIDATE_RESPONSES`                  | `false`                                      |
-| `maxRetries`        | `CAMUNDA_CONSOLE_MAX_RETRIES`                         | `3`                                          |
-| `userAgent`         | `CAMUNDA_CUSTOM_USER_AGENT_STRING`                    | none                                         |
-| `fetch`             |                                                       | `globalThis.fetch`                           |
+| Option               | Environment variable                                  | Default                                      |
+| -------------------- | ----------------------------------------------------- | -------------------------------------------- |
+| `clientId`           | `CAMUNDA_CONSOLE_CLIENT_ID`                           | required                                     |
+| `clientSecret`       | `CAMUNDA_CONSOLE_CLIENT_SECRET`                       | required                                     |
+| `baseUrl`            | `CAMUNDA_CONSOLE_BASE_URL`                            | `https://api.cloud.camunda.io`               |
+| `oauthUrl`           | `CAMUNDA_CONSOLE_OAUTH_URL`, then `CAMUNDA_OAUTH_URL` | `https://login.cloud.camunda.io/oauth/token` |
+| `audience`           | `CAMUNDA_CONSOLE_OAUTH_AUDIENCE`                      | `api.cloud.camunda.io`                       |
+| `validateRequests`   | `CAMUNDA_CONSOLE_VALIDATE_REQUESTS`                   | `true`                                       |
+| `validateResponses`  | `CAMUNDA_CONSOLE_VALIDATE_RESPONSES`                  | `false`                                      |
+| `maxRetries`         | `CAMUNDA_CONSOLE_MAX_RETRIES`                         | `3`                                          |
+| `userAgent`          | `CAMUNDA_CUSTOM_USER_AGENT_STRING`                    | none                                         |
+| `customRootCertPath` | `CAMUNDA_CUSTOM_ROOT_CERT_PATH`                       | none                                         |
+| `customRootCert`     | `CAMUNDA_CUSTOM_ROOT_CERT_STRING`                     | none                                         |
+| `fetch`              |                                                       | `globalThis.fetch`                           |
+
+`customRootCertPath` / `customRootCert` add a PEM root certificate (for a private or self-signed CA) to the system trust store for both Console API and OAuth token requests. A relative path resolves against `process.cwd()`; the path wins if both are set. A warning is logged if the certificate is not self-issued. This uses an undici `dispatcher`, because built-in `fetch` ignores an `https.Agent`.
 
 Explicit options override environment variables. The variable names are the same as in `@camunda8/sdk`.
 

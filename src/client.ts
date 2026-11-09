@@ -9,6 +9,7 @@ import {
 import { type Client, createClient } from './gen/client';
 import * as api from './gen/sdk.gen';
 import type * as T from './gen/types.gen';
+import { withCustomRootCert } from './tls';
 import { createConsoleFetch, type RetryOptions } from './transport';
 import { buildUserAgent } from './version';
 
@@ -97,8 +98,11 @@ export class ConsoleClient {
   private readonly tokens: TokenProvider;
 
   constructor(options: ConsoleClientOptions = {}) {
-    const { fetch: fetchImpl = globalThis.fetch, env, retry, ...configOptions } = options;
+    const { fetch: baseFetch = globalThis.fetch, env, retry, ...configOptions } = options;
     this.config = Object.freeze(resolveConfig(configOptions, env));
+    const fetchImpl = this.config.customRootCert
+      ? withCustomRootCert(baseFetch, this.config.customRootCert)
+      : baseFetch;
     this.tokens = new TokenProvider(this.config, fetchImpl);
     this.client = createClient({
       baseUrl: this.config.baseUrl,
