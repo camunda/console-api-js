@@ -111,6 +111,13 @@ export function resolveConfig(
       `maxRetries must be a non-negative integer, got ${config.maxRetries}`
     );
   }
-  config.baseUrl = config.baseUrl.replace(/\/+$/, '');
+  config.baseUrl = stripTrailingSlashes(config.baseUrl);
   return config;
+}
+
+/** Remove trailing '/' characters. A loop, not /\/+$/, which backtracks quadratically. */
+function stripTrailingSlashes(url: string): string {
+  let end = url.length;
+  while (end > 0 && url.charCodeAt(end - 1) === 47 /* '/' */) end--;
+  return url.slice(0, end);
 }
