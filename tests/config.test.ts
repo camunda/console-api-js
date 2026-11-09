@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ConsoleApiConfigError, DEFAULTS, resolveConfig } from '../src/config';
 
+const creds = { CAMUNDA_CONSOLE_CLIENT_ID: 'a', CAMUNDA_CONSOLE_CLIENT_SECRET: 'b' };
+
 describe('resolveConfig', () => {
   it('applies SaaS defaults', () => {
     expect(resolveConfig({ clientId: 'a', clientSecret: 'b' }, {})).toEqual({
@@ -71,5 +73,28 @@ describe('resolveConfig', () => {
     expect(() => resolveConfig({ clientId: 'a', clientSecret: 'b', maxRetries: -2 }, {})).toThrow(
       ConsoleApiConfigError
     );
+  });
+
+  it.each([
+    ['https://api.example.test', 'https://api.example.test'],
+    ['https://api.example.test/', 'https://api.example.test'],
+    ['https://api.example.test///', 'https://api.example.test'],
+    ['https://api.example.test/v1/', 'https://api.example.test/v1'],
+  ])('strips trailing slashes from baseUrl %s', (input, expected) => {
+    expect(resolveConfig({ clientId: 'a', clientSecret: 'b', baseUrl: input }, {}).baseUrl).toBe(
+      expected
+    );
+    expect(resolveConfig({}, { ...creds, CAMUNDA_CONSOLE_BASE_URL: input }).baseUrl).toBe(expected);
+  });
+
+  // CodeQL js/polynomial-redos: a regex like /\/+$/ backtracks quadratically on a long run of
+  // slashes that is not at the end. Normalisation must stay linear for any input.
+  it('normalises a pathological baseUrl in linear time', () => {
+    const hostile = `https://x${'/'.repeat(50_000)}y`;
+    const start = performance.now();
+    expect(resolveConfig({ clientId: 'a', clientSecret: 'b', baseUrl: hostile }, {}).baseUrl).toBe(
+      hostile
+    );
+    expect(performance.now() - start).toBeLessThan(100);
   });
 });
