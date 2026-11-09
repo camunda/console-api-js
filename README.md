@@ -71,7 +71,7 @@ Explicit options override environment variables. The variable names are the same
 
 - **Authentication.** OAuth client credentials. The token is cached in memory and refreshed a minute before it expires. On a 401 the client fetches a new token and retries once.
 - **Retries.** `429` is retried for every method, honouring `Retry-After`. `502`/`503`/`504` and network errors are retried only for idempotent methods (GET, PUT, DELETE), so a request such as `createCluster` is never sent twice.
-- **Errors.** Every method throws `ConsoleApiError` (with `status`, `method`, `url` and `body`) on a non-2xx response. Token failures throw `ConsoleApiAuthError`, bad configuration throws `ConsoleApiConfigError`.
+- **Errors.** Every method throws `ConsoleApiError` (with `status`, `method`, `url` and `body`) on a non-2xx response. Token failures throw `ConsoleApiAuthError`, bad configuration throws `ConsoleApiConfigError`. A payload that doesn't match the spec throws `ConsoleApiValidationError` (with `phase` of `request` or `response`, `operation` and `issues`); its issues give the field path and what was expected, never the value itself.
 - **Validation.** Request payloads are validated against the API spec before sending. Response validation is off by default so that a field the server adds or omits does not break your code; turn it on with `validateResponses: true`.
 
 ## Migrating from `@camunda8/sdk`
