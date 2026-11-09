@@ -10,7 +10,7 @@ on:
     branches:
       - main
   schedule:
-    - cron: '41 5 * * *'
+    - cron: "41 5 * * *"
   workflow_dispatch:
 
 permissions:
@@ -30,7 +30,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 22.x
-          cache: 'npm'
+          cache: "npm"
       - run: npm ci
       - name: Check credentials are configured
         env:
