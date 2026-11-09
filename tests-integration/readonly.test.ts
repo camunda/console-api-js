@@ -6,7 +6,8 @@
  * Run with: CONSOLE_API_INTEGRATION=1 CAMUNDA_CONSOLE_CLIENT_ID=... CAMUNDA_CONSOLE_CLIENT_SECRET=... npm run test:integration
  */
 import { describe, expect, it } from 'vitest';
-import { ConsoleApiError, createConsoleClient } from '../src';
+import { createConsoleClient } from '../src';
+import { getSecrets } from '../src/gen/sdk.gen';
 
 describe('Console API (live, read-only)', () => {
   const consoleApi = createConsoleClient({ validateResponses: true });
@@ -40,16 +41,22 @@ describe('Console API (live, read-only)', () => {
   it('getSecrets returns a map of string values (values are never logged)', async () => {
     const [first] = await consoleApi.getClusters();
     if (!first) return;
-    const unvalidated = createConsoleClient({ validateResponses: false });
-    let secrets: unknown;
-    try {
-      secrets = await unvalidated.getSecrets(first.uuid);
-    } catch (e) {
-      const status = e instanceof ConsoleApiError ? e.status : undefined;
+    // Call the generated function on the shared client (one OAuth token for the whole suite; the
+    // token endpoint is rate limited per IP) with response validation off.
+    const result = await getSecrets({
+      client: consoleApi.client,
+      path: { clusterUuid: first.uuid },
+      responseValidator: undefined,
+      throwOnError: false,
+    }).catch((e: Error) => {
+      throw new Error(`getSecrets failed (${e.name}); details withheld`);
+    });
+    if (!result.response?.ok) {
       throw new Error(
-        `getSecrets failed (${(e as Error).name}, status ${status ?? 'n/a'}); details withheld`
+        `getSecrets failed with HTTP ${result.response?.status ?? 'n/a'}; details withheld`
       );
     }
+    const secrets: unknown = result.data;
     const isStringMap =
       typeof secrets === 'object' &&
       secrets !== null &&
