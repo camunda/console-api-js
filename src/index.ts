@@ -9,3 +9,4 @@ export { type ConsoleApiConfig, ConsoleApiConfigError, DEFAULTS, resolveConfig }
 export { ConsoleApiError, ConsoleApiValidationError, type ValidationIssue } from './errors';
 export type * from './gen/types.gen';
 export * as schemas from './gen/zod.gen';
+export { USER_AGENT_PRODUCT, VERSION } from './version';

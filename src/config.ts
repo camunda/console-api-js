@@ -26,6 +26,12 @@ export interface ConsoleApiConfig {
   validateResponses: boolean;
   /** Maximum retries for throttled (429) and transient (502/503/504) responses. Default `3`. */
   maxRetries: number;
+  /**
+   * Appended, after a space, to the `User-Agent` sent on every request
+   * (`camunda8-console-api-js/<version> <userAgent>`). Env: `CAMUNDA_CUSTOM_USER_AGENT_STRING`,
+   * as in `@camunda8/sdk`. Optional.
+   */
+  userAgent?: string;
 }
 
 export const DEFAULTS = {
@@ -98,6 +104,7 @@ export function resolveConfig(
       options.maxRetries ??
       parseNonNegativeInt('CAMUNDA_CONSOLE_MAX_RETRIES', env.CAMUNDA_CONSOLE_MAX_RETRIES) ??
       DEFAULTS.maxRetries,
+    userAgent: options.userAgent ?? pick('CAMUNDA_CUSTOM_USER_AGENT_STRING'),
   };
 
   const missing: string[] = [];
