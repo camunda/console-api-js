@@ -4,7 +4,8 @@ name: Integration (live SaaS, read-only)
 # CAMUNDA_CONSOLE_CLIENT_ID / CAMUNDA_CONSOLE_CLIENT_SECRET repository secrets, with response
 # validation on, to detect mismatches between the published spec and real responses.
 #
-# Not run on pull requests: PR code would run with the organisation's credentials.
+# Not run on pull requests or non-main refs: unmerged code would run with the organisation's
+# credentials.
 on:
   push:
     branches:
@@ -23,6 +24,8 @@ concurrency:
 
 jobs:
   integration:
+    # workflow_dispatch can target any branch; never run unmerged code with the org's secrets.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
