@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ConsoleClient, isSdkError } from '../src';
-import { fakeFetch, testConfig } from './helpers';
+import { fakeFetch, isApiCall, testConfig } from './helpers';
 
 function client(
   handler: Parameters<typeof fakeFetch>[0],
@@ -78,7 +78,7 @@ describe('ConsoleClient', () => {
     await expect(
       console.createMonitoringClient({ clusterUuid: 'c1', username: 42 } as never)
     ).rejects.toMatchObject({ name: 'ValidationSdkError', side: 'request' });
-    expect(calls.filter((c) => c.url.startsWith('https://console.test'))).toHaveLength(0);
+    expect(calls.filter(isApiCall)).toHaveLength(0);
   });
 
   it('can turn request validation off', async () => {
@@ -86,7 +86,7 @@ describe('ConsoleClient', () => {
       config: { ...testConfig, CAMUNDA_SDK_VALIDATION: 'req:none,res:none' },
     });
     await console.createMonitoringClient({ clusterUuid: 'c1', username: 42 } as never);
-    expect(calls.filter((c) => c.url.startsWith('https://console.test'))).toHaveLength(1);
+    expect(calls.filter(isApiCall)).toHaveLength(1);
   });
 
   it('tolerates responses that do not match the spec unless response validation is on', async () => {
@@ -108,7 +108,7 @@ describe('ConsoleClient', () => {
     // An unknown field is off-spec for the generated strict request validator; warn mode logs
     // the issues (never values) and still sends the request.
     await console.createMonitoringClient({ clusterUuid: 'c1', bogusField: 1 } as never);
-    expect(calls.filter((c) => c.url.startsWith('https://console.test'))).toHaveLength(1);
+    expect(calls.filter(isApiCall)).toHaveLength(1);
   });
 
   it('fanatical rejects unknown body fields that strict tolerates', async () => {
@@ -124,7 +124,7 @@ describe('ConsoleClient', () => {
       operationId: 'CreateSecret',
     });
     expect(err.message).toContain('bogus');
-    expect(calls.filter((c) => c.url.startsWith('https://console.test'))).toHaveLength(0);
+    expect(calls.filter(isApiCall)).toHaveLength(0);
   });
 });
 
@@ -137,7 +137,7 @@ describe('per-call retry override', () => {
       sleep: async () => {},
     });
     await console.getClusters();
-    expect(calls.filter((c) => c.url.startsWith('https://console.test'))).toHaveLength(3);
+    expect(calls.filter(isApiCall)).toHaveLength(3);
   });
 
   it('retry: false disables retry for that call', async () => {
@@ -150,7 +150,7 @@ describe('per-call retry override', () => {
       status: 429,
       retries: { attempt: 1, max: 1 },
     });
-    expect(calls.filter((c) => c.url.startsWith('https://console.test'))).toHaveLength(1);
+    expect(calls.filter(isApiCall)).toHaveLength(1);
   });
 
   it('a partial policy overrides individual fields for that call', async () => {
@@ -163,6 +163,6 @@ describe('per-call retry override', () => {
       status: 429,
       retries: { attempt: 5, max: 5 },
     });
-    expect(calls.filter((c) => c.url.startsWith('https://console.test'))).toHaveLength(5);
+    expect(calls.filter(isApiCall)).toHaveLength(5);
   });
 });

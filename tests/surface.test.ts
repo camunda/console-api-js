@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ConsoleClient, OPERATION_METHODS } from '../src';
-import { fakeFetch, testConfig } from './helpers';
+import { fakeFetch, isApiCall, testConfig } from './helpers';
 
 type Schema = {
   type?: string;
@@ -96,7 +96,7 @@ describe('API surface', () => {
       ? method.call(client, args)
       : method.call(client));
 
-    const apiCalls = calls.filter((c) => c.url.startsWith('https://console.test'));
+    const apiCalls = calls.filter(isApiCall);
     expect(apiCalls).toHaveLength(1);
     const [call] = apiCalls;
     const expectedPath = op.path.replace(/\{(\w+)\}/g, (_, p) => `${p}-value`);

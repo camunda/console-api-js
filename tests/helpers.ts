@@ -54,3 +54,8 @@ export function fakeLogger() {
   );
   return { logger, events };
 }
+
+/** True for calls to the test API host (not the OAuth endpoint). Host check, not prefix. */
+export function isApiCall(call: RecordedCall): boolean {
+  return new URL(call.url).host === 'console.test';
+}

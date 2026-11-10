@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ConsoleClient, isSdkError, OPERATION_METHODS } from '../src';
-import { fakeFetch, fakeLogger, testConfig } from './helpers';
+import { fakeFetch, fakeLogger, isApiCall, testConfig } from './helpers';
 
 // Validation failures must be reported as ValidationSdkError for every operation: never as an
 // HTTP error (a 200 response is not a failed request), and never with payload values in the
@@ -56,7 +56,7 @@ function makeClient(response: () => Response, config: Record<string, unknown> = 
   return {
     client,
     events,
-    apiCalls: () => fake.calls.filter((c) => c.url.startsWith('https://console.test')),
+    apiCalls: () => fake.calls.filter(isApiCall),
   };
 }
 
