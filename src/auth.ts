@@ -1,16 +1,7 @@
-import type { ConsoleApiConfig } from './config';
+import type { ResolvedConfig } from './config';
+import { authError } from './errors';
+import type { Logger } from './logger';
 import { buildUserAgent } from './version';
-
-export class ConsoleApiAuthError extends Error {
-  constructor(
-    message: string,
-    readonly status?: number,
-    readonly body?: string
-  ) {
-    super(message);
-    this.name = 'ConsoleApiAuthError';
-  }
-}
 
 /** Refresh tokens this many ms before they expire, so a request never carries a stale token. */
 const EXPIRY_SKEW_MS = 60_000;
@@ -21,6 +12,8 @@ const EXPIRY_SKEW_MS = 60_000;
  * - Caches the token in memory until shortly before it expires.
  * - Concurrent callers share one in-flight token request.
  * - `invalidate()` drops the cached token (used after a 401).
+ * - Throws `AuthSdkError` on failure. The token endpoint's response body is never read into an
+ *   error or a log: it can echo back client input, and a token response carries an access token.
  */
 export class TokenProvider {
   private token?: { value: string; expiresAt: number };
@@ -28,11 +21,12 @@ export class TokenProvider {
 
   constructor(
     private readonly config: Pick<
-      ConsoleApiConfig,
+      ResolvedConfig,
       'clientId' | 'clientSecret' | 'oauthUrl' | 'audience' | 'userAgent'
     >,
     private readonly fetchImpl: typeof fetch = globalThis.fetch,
-    private readonly now: () => number = Date.now
+    private readonly now: () => number = Date.now,
+    private readonly logger?: Logger
   ) {}
 
   async getToken(): Promise<string> {
@@ -68,33 +62,30 @@ export class TokenProvider {
         body,
       });
     } catch (e) {
-      throw new ConsoleApiAuthError(
-        `Token request to ${this.config.oauthUrl} failed: ${(e as Error).message}`
-      );
+      this.logger?.debug('auth.token.failed', { reason: 'network-error' });
+      throw authError(`Token request to ${this.config.oauthUrl} failed: ${(e as Error).message}`, {
+        cause: e,
+      });
     }
-    const text = await res.text();
     if (!res.ok) {
-      throw new ConsoleApiAuthError(
-        `Token request to ${this.config.oauthUrl} failed with HTTP ${res.status}`,
-        res.status,
-        text
-      );
+      await res.body?.cancel();
+      this.logger?.debug('auth.token.failed', { status: res.status });
+      throw authError(`Token request to ${this.config.oauthUrl} failed with HTTP ${res.status}`, {
+        status: res.status,
+      });
     }
     let json: { access_token?: unknown; expires_in?: unknown };
     try {
-      json = JSON.parse(text);
+      json = await res.json();
     } catch {
-      throw new ConsoleApiAuthError('Token endpoint returned a non-JSON body', res.status, text);
+      throw authError('Token endpoint returned a non-JSON body', { status: res.status });
     }
     if (typeof json.access_token !== 'string' || !json.access_token) {
-      throw new ConsoleApiAuthError(
-        'Token endpoint response has no access_token',
-        res.status,
-        text
-      );
+      throw authError('Token endpoint response has no access_token', { status: res.status });
     }
     const expiresInSec = typeof json.expires_in === 'number' ? json.expires_in : 0;
     this.token = { value: json.access_token, expiresAt: this.now() + expiresInSec * 1000 };
+    this.logger?.debug('auth.token.fetched', { expiresInSec });
     return json.access_token;
   }
 }

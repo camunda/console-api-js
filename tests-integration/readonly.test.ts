@@ -10,7 +10,9 @@ import { createConsoleClient } from '../src';
 import { getSecrets } from '../src/gen/sdk.gen';
 
 describe('Console API (live, read-only)', () => {
-  const consoleApi = createConsoleClient({ validateResponses: true });
+  const consoleApi = createConsoleClient({
+    config: { CAMUNDA_SDK_VALIDATION: 'req:strict,res:strict' },
+  });
 
   it('getParameters matches the spec', async () => {
     const params = await consoleApi.getParameters();
@@ -30,9 +32,9 @@ describe('Console API (live, read-only)', () => {
     expect(Array.isArray(clusters)).toBe(true);
     const [first] = clusters;
     if (!first) return;
-    await consoleApi.getCluster(first.uuid);
-    await consoleApi.getClients(first.uuid);
-    await consoleApi.getBackups(first.uuid);
+    await consoleApi.getCluster({ clusterUuid: first.uuid });
+    await consoleApi.getClients({ clusterUuid: first.uuid });
+    await consoleApi.getBackups({ clusterUuid: first.uuid });
   });
 
   // getSecrets returns real connector secret values. This test must never put them into an

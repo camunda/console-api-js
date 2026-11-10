@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ConsoleClient } from '../src/client';
-import { ConsoleApiConfigError, resolveConfig } from '../src/config';
+import { CamundaConfigurationError, resolveConfig } from '../src/config';
 import { buildCaList } from '../src/tls';
 
 // A throwaway CA and a localhost leaf certificate it signs, generated per run.
@@ -110,18 +110,18 @@ afterAll(async () => {
 const creds = { CAMUNDA_CONSOLE_CLIENT_ID: 'a', CAMUNDA_CONSOLE_CLIENT_SECRET: 'b' };
 
 describe.skipIf(!hasOpenssl)('custom root certificate config', () => {
-  it('an explicit customRootCert wins over an inherited (even unreadable) env path', () => {
+  it('an explicit CAMUNDA_CUSTOM_ROOT_CERT_STRING wins over an inherited (even unreadable) env path', () => {
     const c = resolveConfig(
-      { customRootCert: caPem },
+      { CAMUNDA_CUSTOM_ROOT_CERT_STRING: caPem },
       { ...creds, CAMUNDA_CUSTOM_ROOT_CERT_PATH: join(dir, 'missing.pem') }
     );
     expect(c.customRootCert).toBe(caPem);
     expect(c.customRootCertPath).toBeUndefined();
   });
 
-  it('an explicit customRootCertPath wins over the env path', () => {
+  it('an explicit CAMUNDA_CUSTOM_ROOT_CERT_PATH wins over the env path', () => {
     const c = resolveConfig(
-      { customRootCertPath: caPath },
+      { CAMUNDA_CUSTOM_ROOT_CERT_PATH: caPath },
       { ...creds, CAMUNDA_CUSTOM_ROOT_CERT_PATH: join(dir, 'missing.pem') }
     );
     expect(c.customRootCert).toBe(caPem);
@@ -149,27 +149,27 @@ describe.skipIf(!hasOpenssl)('custom root certificate config', () => {
     expect(c.customRootCert).toBe(caPem);
   });
 
-  it('explicit options win over the environment', () => {
+  it('explicit config wins over the environment', () => {
     const c = resolveConfig(
-      { customRootCert: caPem },
+      { CAMUNDA_CUSTOM_ROOT_CERT_STRING: caPem },
       { ...creds, CAMUNDA_CUSTOM_ROOT_CERT_STRING: leafPem }
     );
     expect(c.customRootCert).toBe(caPem);
   });
 
-  it('throws ConsoleApiConfigError for an unreadable path', () => {
+  it('throws CamundaConfigurationError for an unreadable path', () => {
     expect(() =>
       resolveConfig({}, { ...creds, CAMUNDA_CUSTOM_ROOT_CERT_PATH: join(dir, 'missing.pem') })
-    ).toThrow(ConsoleApiConfigError);
+    ).toThrow(CamundaConfigurationError);
     expect(() =>
       resolveConfig({}, { ...creds, CAMUNDA_CUSTOM_ROOT_CERT_PATH: join(dir, 'missing.pem') })
     ).toThrow(/missing\.pem/);
   });
 
-  it('throws ConsoleApiConfigError for content that is not a certificate', () => {
+  it('throws CamundaConfigurationError for content that is not a certificate', () => {
     expect(() =>
       resolveConfig({}, { ...creds, CAMUNDA_CUSTOM_ROOT_CERT_STRING: 'not a cert' })
-    ).toThrow(ConsoleApiConfigError);
+    ).toThrow(CamundaConfigurationError);
   });
 
   it('warns when the certificate is not self-issued, and not for a root', () => {
@@ -196,9 +196,9 @@ describe.skipIf(!hasOpenssl)('custom root certificate transport (local HTTPS ser
         ...creds,
         CAMUNDA_CONSOLE_BASE_URL: baseUrl,
         CAMUNDA_CONSOLE_OAUTH_URL: `${baseUrl}/oauth/token`,
+        CAMUNDA_SDK_HTTP_RETRY_MAX_ATTEMPTS: '1',
         ...extra,
       },
-      maxRetries: 0,
     });
 
   it('token and API requests succeed with the custom root configured', async () => {
@@ -254,7 +254,7 @@ describe('custom root certificate edge cases (no openssl needed)', () => {
         const p = join(d, 'empty.pem');
         writeFileSync(p, body);
         expect(() => resolveConfig({}, { ...creds, CAMUNDA_CUSTOM_ROOT_CERT_PATH: p })).toThrow(
-          ConsoleApiConfigError
+          CamundaConfigurationError
         );
       }
     } finally {

@@ -33,3 +33,24 @@ export function fakeFetch(
   }) as typeof globalThis.fetch;
   return { fetch, calls, tokenRequests: () => tokens };
 }
+
+/** Config for a test client: credentials in the `config: { CAMUNDA_* }` shape. */
+export const testConfig = {
+  CAMUNDA_CONSOLE_CLIENT_ID: 'id',
+  CAMUNDA_CONSOLE_CLIENT_SECRET: 'secret',
+  CAMUNDA_CONSOLE_BASE_URL: 'https://console.test',
+} as const;
+
+/** A logger double that records every event. */
+export function fakeLogger() {
+  const events: Array<{ level: string; message: string; meta?: Record<string, unknown> }> = [];
+  const logger = new Proxy(
+    {},
+    {
+      get: (_t, level: string) => (message: string, meta?: Record<string, unknown>) => {
+        events.push({ level, message, meta });
+      },
+    }
+  );
+  return { logger, events };
+}
