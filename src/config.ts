@@ -1,3 +1,7 @@
+import { X509Certificate } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { resolve as resolvePath } from 'node:path';
+
 /**
  * Configuration for the Console API client.
  *
@@ -32,6 +36,18 @@ export interface ConsoleApiConfig {
    * as in `@camunda8/sdk`. Optional.
    */
   userAgent?: string;
+  /**
+   * PEM root certificate to trust in addition to the system trust store, for endpoints secured
+   * with a private or self-signed CA. Applies to Console API and OAuth token requests.
+   * Env: `CAMUNDA_CUSTOM_ROOT_CERT_STRING`. After resolution this holds the PEM, whichever
+   * source it came from.
+   */
+  customRootCert?: string;
+  /**
+   * Path to a PEM root certificate. Relative paths resolve against `process.cwd()`. Wins over
+   * `customRootCert` when both are set. Env: `CAMUNDA_CUSTOM_ROOT_CERT_PATH`.
+   */
+  customRootCertPath?: string;
 }
 
 export const DEFAULTS = {
@@ -68,12 +84,61 @@ function parseNonNegativeInt(name: string, value: string | undefined): number | 
 }
 
 /**
+ * Resolve the custom root certificate. Explicit options win over the environment; within
+ * each source the path wins over the inline string, matching `@camunda8/sdk`. Returns the PEM and the absolute path it was read from (if any).
+ */
+function resolveCustomRootCert(
+  options: Partial<ConsoleApiConfig>,
+  pick: (...names: string[]) => string | undefined,
+  warn: (message: string) => void
+): { customRootCert?: string; customRootCertPath?: string } {
+  // Explicit options win over the environment; within each source the path wins over the string.
+  const explicit = options.customRootCertPath !== undefined || options.customRootCert !== undefined;
+  const pathOption = explicit ? options.customRootCertPath : pick('CAMUNDA_CUSTOM_ROOT_CERT_PATH');
+  let pem: string | undefined;
+  let absPath: string | undefined;
+  if (pathOption) {
+    absPath = resolvePath(process.cwd(), pathOption);
+    try {
+      pem = readFileSync(absPath, 'utf8');
+    } catch (e) {
+      throw new ConsoleApiConfigError(
+        `Cannot read custom root certificate at ${absPath} (CAMUNDA_CUSTOM_ROOT_CERT_PATH): ${(e as Error).message}`
+      );
+    }
+    if (pem.trim() === '') {
+      throw new ConsoleApiConfigError(
+        `Custom root certificate at ${absPath} (CAMUNDA_CUSTOM_ROOT_CERT_PATH) is empty`
+      );
+    }
+  } else {
+    pem = explicit ? options.customRootCert : pick('CAMUNDA_CUSTOM_ROOT_CERT_STRING');
+  }
+  if (!pem) return {};
+  let cert: X509Certificate;
+  try {
+    cert = new X509Certificate(pem);
+  } catch (e) {
+    throw new ConsoleApiConfigError(
+      `Custom root certificate${absPath ? ` at ${absPath}` : ''} is not a valid PEM certificate: ${(e as Error).message}`
+    );
+  }
+  if (cert.issuer !== cert.subject) {
+    warn(
+      `Custom root certificate${absPath ? ` at ${absPath}` : ''} is not self-issued (issuer "${cert.issuer}" differs from subject "${cert.subject}"); it may not be a root certificate.`
+    );
+  }
+  return absPath ? { customRootCert: pem, customRootCertPath: absPath } : { customRootCert: pem };
+}
+
+/**
  * Merge explicit options over environment variables over defaults, and check required values.
  * Explicit options always win.
  */
 export function resolveConfig(
   options: Partial<ConsoleApiConfig> = {},
-  env: Record<string, string | undefined> = typeof process !== 'undefined' ? process.env : {}
+  env: Record<string, string | undefined> = typeof process !== 'undefined' ? process.env : {},
+  warn: (message: string) => void = (m) => console.warn(`[@camunda8/console-api] ${m}`)
 ): ConsoleApiConfig {
   const pick = (...names: string[]) => {
     for (const n of names) {
@@ -105,6 +170,7 @@ export function resolveConfig(
       parseNonNegativeInt('CAMUNDA_CONSOLE_MAX_RETRIES', env.CAMUNDA_CONSOLE_MAX_RETRIES) ??
       DEFAULTS.maxRetries,
     userAgent: options.userAgent ?? pick('CAMUNDA_CUSTOM_USER_AGENT_STRING'),
+    ...resolveCustomRootCert(options, pick, warn),
   };
 
   const missing: string[] = [];
