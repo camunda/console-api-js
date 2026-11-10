@@ -1,32 +1,13 @@
-import { readFileSync } from 'node:fs';
-import * as tls from 'node:tls';
+import { getCACertificates } from 'node:tls';
 import { Agent } from 'undici';
 
 type CaStore = 'default' | 'system' | 'bundled' | 'extra';
-// Read from the namespace, not as a named import: `getCACertificates` only exists from Node 22.15,
-// and a missing named ESM export would fail module load on earlier supported Node 22 releases.
-const getCACertificates = (tls as { getCACertificates?: (store?: CaStore) => string[] })
-  .getCACertificates;
 
-function tryStore(store: CaStore): string[] | undefined {
-  if (typeof getCACertificates !== 'function') return undefined;
+// `engines.node` is >=22.15.0, where `tls.getCACertificates` is always available, so this named
+// import is safe and the OS-trusted roots are always enumerable alongside a custom root.
+function tryStore(store: CaStore): string[] {
   try {
     return getCACertificates(store);
-  } catch {
-    return undefined;
-  }
-}
-
-/** Certificates from `NODE_EXTRA_CA_CERTS`, for Node versions without `getCACertificates`. */
-function extraCaFromEnv(): string[] {
-  const file = process.env.NODE_EXTRA_CA_CERTS;
-  if (!file) return [];
-  try {
-    return (
-      readFileSync(file, 'utf8').match(
-        /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g
-      ) ?? []
-    );
   } catch {
     return [];
   }
@@ -39,9 +20,8 @@ function extraCaFromEnv(): string[] {
  */
 export function buildCaList(customRootCert: string): string[] {
   const ca = new Set<string>([customRootCert]);
-  const defaults = tryStore('default') ?? [...tls.rootCertificates, ...extraCaFromEnv()];
-  for (const c of defaults) ca.add(c);
-  for (const c of tryStore('system') ?? []) ca.add(c);
+  for (const c of tryStore('default')) ca.add(c);
+  for (const c of tryStore('system')) ca.add(c);
   return [...ca];
 }
 

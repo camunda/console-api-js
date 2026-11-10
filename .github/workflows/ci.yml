@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 22.x
+          node-version: 22.15.x
           cache: "npm"
       - run: npm ci
       # Regenerating from the COMMITTED spec snapshot must reproduce the committed src/gen.

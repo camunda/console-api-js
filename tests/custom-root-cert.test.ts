@@ -263,11 +263,10 @@ describe('custom root certificate edge cases (no openssl needed)', () => {
   });
 
   it('keeps NODE_EXTRA_CA_CERTS / default CAs in the trust list', async () => {
-    const tls = await import('node:tls');
+    const { getCACertificates } = await import('node:tls');
     const list = buildCaList('CUSTOM');
     expect(list[0]).toBe('CUSTOM');
-    const getCA = (tls as { getCACertificates?: (s: string) => string[] }).getCACertificates;
-    const defaults = typeof getCA === 'function' ? getCA('default') : tls.rootCertificates;
-    for (const c of defaults) expect(list).toContain(c);
+    // engines.node >=22.15.0, so getCACertificates is always available here.
+    for (const c of getCACertificates('default')) expect(list).toContain(c);
   });
 });

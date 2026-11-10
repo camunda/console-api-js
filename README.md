@@ -15,7 +15,7 @@ The Console API is the SaaS control plane. It is versioned independently of Camu
 npm install @camunda8/console-api
 ```
 
-Node.js 22 or later.
+Node.js 22.15.0 or later.
 
 ## Usage
 
