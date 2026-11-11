@@ -24,6 +24,7 @@ import {
   type OperationOptions,
   resolveRetryPolicy,
   runWithContext,
+  type TransportContext,
 } from './transport';
 import { buildUserAgent } from './version';
 
@@ -115,39 +116,106 @@ type AnyRecord = Record<string, unknown>;
 const PROBE = Symbol('validator-probe');
 
 /**
- * Body fields the operation's spec does not declare (fanatical mode). The allowed field names
- * are derived from the generated zod body schemas, so they track the spec automatically.
+ * Generated zod schemas keyed by operationId: request bodies (`z<Op>Body`, `z<Op>Body2`, ...)
+ * and responses (`z<Op>Response`). Used by fanatical mode, which rejects fields the spec does
+ * not declare, and to tell operations that take a body from path-only ones.
  */
-function unknownBodyFields(operationId: string, body: unknown): string[] {
-  if (!body || typeof body !== 'object' || Array.isArray(body)) return [];
-  const allowed = BODY_FIELDS.get(operationId);
-  if (!allowed) return [];
-  return Object.keys(body as AnyRecord).filter((k) => !allowed.has(k));
+const BODY_SCHEMAS: ReadonlyMap<string, unknown> = schemasMatching(/^z([A-Z].*?)Body\d*$/);
+const RESPONSE_SCHEMAS: ReadonlyMap<string, unknown> = schemasMatching(/^z([A-Z].*?)Response$/);
+
+function schemasMatching(pattern: RegExp): Map<string, unknown> {
+  const map = new Map<string, unknown>();
+  for (const [exportName, schema] of Object.entries(zodSchemas)) {
+    const m = pattern.exec(exportName);
+    if (m) map.set(m[1], schema);
+  }
+  return map;
 }
 
-const BODY_FIELDS: ReadonlyMap<string, ReadonlySet<string>> = buildBodyFields();
+type ZodDefLike = {
+  type?: string;
+  shape?: Record<string, unknown>;
+  catchall?: unknown;
+  innerType?: unknown;
+  in?: unknown;
+  element?: unknown;
+  left?: unknown;
+  right?: unknown;
+  getter?: () => unknown;
+};
 
-type ZodObjectLike = { shape?: Record<string, unknown>; _zod?: { def?: { shape?: unknown } } };
+function defOf(schema: unknown): ZodDefLike | undefined {
+  return (schema as { _zod?: { def?: ZodDefLike } } | undefined)?._zod?.def;
+}
 
-function shapeOf(schema: unknown): Record<string, unknown> | undefined {
-  const s = schema as ZodObjectLike | undefined;
-  if (!s) return undefined;
-  if (s.shape && typeof s.shape === 'object') return s.shape;
-  const defShape = s._zod?.def?.shape;
-  if (defShape && typeof defShape === 'object') return defShape as Record<string, unknown>;
+/** Strip wrappers (optional, nullable, default, ...) down to the schema that shapes the data. */
+function unwrap(schema: unknown, depth = 0): unknown {
+  const def = defOf(schema);
+  if (!def || depth > 32) return schema;
+  switch (def.type) {
+    case 'optional':
+    case 'nullable':
+    case 'default':
+    case 'prefault':
+    case 'nonoptional':
+    case 'readonly':
+    case 'catch':
+      return unwrap(def.innerType, depth + 1);
+    case 'pipe':
+      return unwrap(def.in, depth + 1);
+    case 'lazy':
+      return def.getter ? unwrap(def.getter(), depth + 1) : schema;
+    default:
+      return schema;
+  }
+}
+
+/**
+ * The declared shape of an object schema (or an intersection of object schemas), or undefined
+ * when the schema is not a closed object — records and catchall objects allow any key.
+ */
+function objectShape(schema: unknown): Record<string, unknown> | undefined {
+  const def = defOf(unwrap(schema));
+  if (!def) return undefined;
+  if (def.type === 'object') {
+    const catchall = defOf(def.catchall);
+    if (catchall && catchall.type !== 'never') return undefined;
+    return def.shape;
+  }
+  if (def.type === 'intersection') {
+    const l = objectShape(def.left);
+    const r = objectShape(def.right);
+    return l && r ? { ...l, ...r } : undefined;
+  }
   return undefined;
 }
 
-function buildBodyFields(): Map<string, Set<string>> {
-  const map = new Map<string, Set<string>>();
-  for (const [exportName, schema] of Object.entries(zodSchemas)) {
-    const m = /^z([A-Z].*?)Body\d*$/.exec(exportName);
-    if (!m) continue;
-    const shape = shapeOf(schema);
-    if (!shape) continue;
-    map.set(m[1], new Set(Object.keys(shape)));
+/**
+ * Paths of fields the schema does not declare, at any depth (fanatical mode). Records, unions
+ * and other open shapes are not descended into: their keys are not a fixed set.
+ */
+export function unknownFields(
+  schema: unknown,
+  data: unknown,
+  path: (string | number)[] = []
+): (string | number)[][] {
+  const out: (string | number)[][] = [];
+  const s = unwrap(schema);
+  const def = defOf(s);
+  if (!def || data === null || typeof data !== 'object') return out;
+  if (def.type === 'array') {
+    if (Array.isArray(data)) {
+      data.forEach((item, i) => out.push(...unknownFields(def.element, item, [...path, i])));
+    }
+    return out;
   }
-  return map;
+  const shape = objectShape(s);
+  if (!shape || Array.isArray(data)) return out;
+  for (const [k, v] of Object.entries(data as AnyRecord)) {
+    if (!Object.hasOwn(shape, k)) out.push([...path, k]);
+    else out.push(...unknownFields(shape[k], v, [...path, k]));
+  }
+  return out;
 }
 
 /**
@@ -179,7 +247,9 @@ export function splitArgs(
   }
   const result: { path?: AnyRecord; body?: AnyRecord } = {};
   if (pathParams.length > 0) result.path = path;
-  if (Object.keys(body).length > 0) result.body = body;
+  // An operation that declares a request body gets one even when every field is optional and
+  // none was given (`updateCluster({ clusterUuid })` sends `{}`); path-only operations get none.
+  if (Object.keys(body).length > 0 || BODY_SCHEMAS.has(operationId)) result.body = body;
   return result;
 }
 
@@ -251,7 +321,7 @@ export class ConsoleClient {
     // The generated SDK functions define per-operation zod validators and then spread the
     // options we pass over them, so the modes are applied by passing a replacement validator:
     // `none` disables it, `strict` keeps it as-is, `warn` logs and continues, and `fanatical`
-    // additionally rejects unknown top-level payload fields. Validation issues never carry
+    // additionally rejects fields the spec does not declare, at any depth, on either side. Validation issues never carry
     // values (see errors.ts), and warn-mode logs carry only the issues.
     const wrapValidator = (
       side: 'request' | 'response',
@@ -276,25 +346,25 @@ export class ConsoleClient {
           }
           throw e; // fanatical: everything strict rejects, plus unknown fields below
         }
-        if (
-          mode === 'fanatical' &&
-          side === 'request' &&
-          data &&
-          typeof data === 'object' &&
-          'body' in data
-        ) {
-          const unknown = unknownBodyFields(operationId, (data as AnyRecord).body);
-          if (unknown.length > 0) {
-            throw validationError({
-              side,
-              operationId,
-              issues: unknown.map((f) => ({
-                code: 'unrecognized_keys',
-                path: ['body', f],
-                message: `Unknown field "${f}"`,
-              })),
-            });
-          }
+        if (mode !== 'fanatical' || !data || typeof data !== 'object') return;
+        // The request validator receives the request options (`{ body, path, ... }`); the
+        // response validator receives the parsed response data.
+        const unknown =
+          side === 'request'
+            ? 'body' in data
+              ? unknownFields(BODY_SCHEMAS.get(operationId), (data as AnyRecord).body, ['body'])
+              : []
+            : unknownFields(RESPONSE_SCHEMAS.get(operationId), data);
+        if (unknown.length > 0) {
+          throw validationError({
+            side,
+            operationId,
+            issues: unknown.map((p) => ({
+              code: 'unrecognized_keys',
+              path: p,
+              message: `Unknown field "${String(p[p.length - 1])}"`,
+            })),
+          });
         }
       };
     };
@@ -329,9 +399,10 @@ export class ConsoleClient {
       }
     }
 
+    const ctx: TransportContext = { retryPolicy, operationId, attempts: 0 };
     let result: Result;
     try {
-      result = await runWithContext({ retryPolicy, operationId }, () =>
+      result = await runWithContext(ctx, () =>
         operation({
           ...splitArgs(operationId, pathParams, args),
           ...extra,
@@ -368,9 +439,9 @@ export class ConsoleClient {
         status: result.response.status,
       });
     }
-    // An SDK error thrown by a wrapped validator (warn/fanatical) surfaces in `error` without a
-    // response; pass it through rather than wrapping it as an HTTP error.
-    if (!result.response && isSdkError(result.error)) {
+    // An SDK error thrown by a wrapped validator (fanatical) or by the transport (network
+    // failure) surfaces in `error`; pass it through rather than wrapping it as an HTTP error.
+    if (isSdkError(result.error)) {
       throw result.error;
     }
     if (result.error !== undefined || (result.response && !result.response.ok)) {
@@ -381,7 +452,7 @@ export class ConsoleClient {
         url: result.request?.url,
         operationId,
         body: result.error,
-        retries: { attempt: maxAttempts, max: maxAttempts },
+        retries: { attempt: ctx.attempts, max: maxAttempts },
       });
     }
     return result.data as R;

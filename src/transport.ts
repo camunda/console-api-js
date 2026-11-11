@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { TokenProvider } from './auth';
+import { networkError } from './errors';
 import type { Logger } from './logger';
 
 /**
@@ -56,9 +57,11 @@ export function parseRetryAfter(value: string | null, now = Date.now()): number 
 /** The fetch the transport wraps. Per-call context rides on `transportContext`, not the init. */
 export type OperationFetch = typeof fetch;
 
-interface TransportContext {
+export interface TransportContext {
   retryPolicy: HttpRetryPolicy;
   operationId: string;
+  /** Requests actually sent for this operation (excluding the 401 token-refresh resend). */
+  attempts: number;
 }
 
 /**
@@ -116,6 +119,8 @@ export function createConsoleFetch(options: TransportOptions): OperationFetch {
       if (userAgent) request.headers.set('user-agent', userAgent);
       request.headers.set('authorization', `Bearer ${await tokens.getToken()}`);
 
+      // The 401 token-refresh resend does not advance `attempt`, so it is not counted.
+      if (ctx) ctx.attempts = attempt + 1;
       let response: Response;
       try {
         response = await fetchImpl(request);
@@ -132,7 +137,9 @@ export function createConsoleFetch(options: TransportOptions): OperationFetch {
           await sleep(delay);
           continue;
         }
-        throw error;
+        if ((error as { name?: unknown })?.name === 'AbortError') throw error;
+        logger?.debug('http.network.failed', { operationId, attempt: attempt + 1, maxAttempts });
+        throw networkError(operationId, error);
       }
 
       if (response.status === 401 && !refreshedAfter401) {
@@ -172,9 +179,33 @@ export function resolveRetryPolicy(
 ): HttpRetryPolicy {
   if (override === false) return { ...global, maxAttempts: 1 };
   if (override === undefined) return global;
-  return {
+  const merged: HttpRetryPolicy = {
     maxAttempts: override.maxAttempts ?? global.maxAttempts,
     baseDelayMs: override.baseDelayMs ?? global.baseDelayMs,
     maxDelayMs: override.maxDelayMs ?? global.maxDelayMs,
   };
+  const problems = retryPolicyProblems(merged);
+  if (problems.length > 0) {
+    throw new RangeError(`Invalid per-call retry policy: ${problems.join('; ')}`);
+  }
+  return merged;
+}
+
+/**
+ * Check a retry policy: every field must be a non-negative safe integer and `maxAttempts` at
+ * least 1, so no value (Infinity, NaN, fractions, negatives) can make the retry loop unbounded
+ * or silently disable it. Returns one message per invalid field; empty when valid.
+ */
+export function retryPolicyProblems(policy: HttpRetryPolicy, prefix = ''): string[] {
+  const problems: string[] = [];
+  const check = (name: keyof HttpRetryPolicy, min: number) => {
+    const v = policy[name];
+    if (typeof v !== 'number' || !Number.isSafeInteger(v) || v < min) {
+      problems.push(`${prefix}${name} must be an integer >= ${min}`);
+    }
+  };
+  check('maxAttempts', 1);
+  check('baseDelayMs', 0);
+  check('maxDelayMs', 0);
+  return problems;
 }

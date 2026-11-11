@@ -99,7 +99,10 @@ describe('transport', () => {
     const post = setup(fail);
     await expect(
       post.send('https://console.test/x', { method: 'POST', body: '{}' })
-    ).rejects.toThrow('fetch failed');
+    ).rejects.toMatchObject({
+      name: 'NetworkSdkError',
+      cause: expect.objectContaining({ message: 'fetch failed' }),
+    });
     expect(api(post.calls)).toHaveLength(1);
   });
 

@@ -90,7 +90,10 @@ export function parseValidation(
 
 function parseInt_(key: string, raw: string, errors: string[]): number | undefined {
   const v = raw.trim();
-  if (/^[0-9]+$/.test(v)) return Number.parseInt(v, 10);
+  if (/^[0-9]+$/.test(v)) {
+    const n = Number.parseInt(v, 10);
+    if (Number.isSafeInteger(n)) return n;
+  }
   errors.push(`${key} must be a non-negative integer`);
   return undefined;
 }
@@ -180,7 +183,15 @@ export function resolveConfig(
 
   const str = (key: EnvVarKey): string | undefined => readRaw(key, config, env);
   const int = (key: EnvVarKey): number | undefined => {
-    if (config[key] !== undefined) return config[key] as number;
+    if (config[key] !== undefined) {
+      const v = config[key] as unknown;
+      // Explicit values get the same checks as environment values: a non-negative safe
+      // integer (no Infinity, NaN, fractions or negatives).
+      if (typeof v === 'number' && Number.isSafeInteger(v) && v >= 0) return v;
+      if (typeof v === 'string') return parseInt_(key, v, errors);
+      errors.push(`${key} must be a non-negative integer`);
+      return undefined;
+    }
     const raw = readRaw(key, {}, env);
     return raw === undefined ? undefined : parseInt_(key, raw, errors);
   };
@@ -188,6 +199,11 @@ export function resolveConfig(
   const retryMaxAttempts = int('CAMUNDA_SDK_HTTP_RETRY_MAX_ATTEMPTS');
   const retryBaseDelayMs = int('CAMUNDA_SDK_HTTP_RETRY_BASE_DELAY_MS');
   const retryMaxDelayMs = int('CAMUNDA_SDK_HTTP_RETRY_MAX_DELAY_MS');
+  if (retryMaxAttempts === 0) {
+    errors.push(
+      'CAMUNDA_SDK_HTTP_RETRY_MAX_ATTEMPTS must be at least 1 (it counts the first attempt)'
+    );
+  }
 
   const logLevelRaw = str('CAMUNDA_SDK_LOG_LEVEL');
   let logLevel: LogLevel = SCHEMA.CAMUNDA_SDK_LOG_LEVEL.default;

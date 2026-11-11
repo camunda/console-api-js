@@ -96,8 +96,8 @@ export function httpError(params: {
   const title = typeof pd?.title === 'string' ? pd.title : undefined;
   const detail = typeof pd?.detail === 'string' ? pd.detail : undefined;
   const err = new Error(
-    `${method ?? 'Request'} ${url ?? ''} failed with HTTP ${status} (${operationId})` +
-      (title ? `: ${title}` : '')
+    // `title` is server-controlled response content: it stays on `err.title`, never the message.
+    `${method ?? 'Request'} ${url ?? ''} failed with HTTP ${status} (${operationId})`
   ) as HttpSdkError;
   err.name = 'HttpSdkError';
   err.status = status;
@@ -145,6 +145,18 @@ export function validationError(params: {
   err.operationId = operationId;
   err.issues = issues;
   if (status !== undefined) (err as { status?: number }).status = status;
+  return err;
+}
+
+/**
+ * Build a NetworkSdkError for a request that failed without a response after retries were
+ * exhausted (or not allowed). The underlying error is kept as `cause`; its message is not
+ * interpolated.
+ */
+export function networkError(operationId: string, cause: unknown): NetworkSdkError {
+  const err = new Error(`${operationId}: network request failed`) as NetworkSdkError;
+  err.name = 'NetworkSdkError';
+  err.cause = cause;
   return err;
 }
 
