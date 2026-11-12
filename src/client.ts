@@ -441,7 +441,13 @@ export class ConsoleClient {
     }
     // An SDK error thrown by a wrapped validator (fanatical) or by the transport (network
     // failure) surfaces in `error`; pass it through rather than wrapping it as an HTTP error.
-    if (isSdkError(result.error)) {
+    // Only a real Error instance with no response or a 2xx response qualifies: a parsed non-2xx
+    // body shaped like an SdkError must still go through the sanitized httpError wrapper.
+    if (
+      result.error instanceof Error &&
+      isSdkError(result.error) &&
+      (!result.response || result.response.ok)
+    ) {
       throw result.error;
     }
     if (result.error !== undefined || (result.response && !result.response.ok)) {

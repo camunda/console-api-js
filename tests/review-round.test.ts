@@ -159,3 +159,20 @@ describe('retry bookkeeping', () => {
     expect(err.name).toBe('NetworkSdkError');
   });
 });
+
+describe('non-2xx bodies shaped like SdkErrors are still wrapped', () => {
+  it.each(['ValidationSdkError', 'NetworkSdkError', 'HttpSdkError'])(
+    'wraps a 400 body named %s as an HttpSdkError without leaking its message',
+    async (name) => {
+      const { console } = client(() =>
+        Response.json({ name, message: 'secret-response-content' }, { status: 400 })
+      );
+      const err = (await console.getClusters().catch((e: unknown) => e)) as Error & {
+        status?: number;
+      };
+      expect(err.name).toBe('HttpSdkError');
+      expect(err.status).toBe(400);
+      expect(err.message).not.toContain('secret-response-content');
+    }
+  );
+});
