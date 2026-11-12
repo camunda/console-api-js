@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!dist", "!coverage", "!spec", "!src/gen"]
+    "includes": ["**", "!dist", "!coverage", "!spec", "!src/gen", "!CHANGELOG.md"]
   },
   "formatter": {
     "lineWidth": 100,
