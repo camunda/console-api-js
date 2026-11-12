@@ -10,13 +10,13 @@ export type AuditDto = {
     audit: string;
     auditType: 'c' | 'r' | 'u' | 'd';
     entity: string;
-    entityAttribute?: string;
-    entityAttributeValueFrom?: string;
-    entityAttributeValueTo?: string;
+    entityAttribute?: string | null;
+    entityAttributeValueFrom?: string | null;
+    entityAttributeValueTo?: string | null;
     entityId: string;
     orgId: string;
-    parentEntity?: string;
-    parentEntityId?: string;
+    parentEntity?: string | null;
+    parentEntityId?: string | null;
     service: string;
     timestamp?: number;
     userId: string;
@@ -66,11 +66,10 @@ export type BackupScheduleDto = {
 export type BackupStatus = 'In progress' | 'Failed' | 'Complete' | '-';
 
 export type ByomClientDto = {
-    created: string;
-    createdBy: string;
-    createdByName: string;
-    lastUsed: string;
-    name: string;
+    created: string | null;
+    createdBy: string | null;
+    createdByName?: string;
+    lastUsed?: string | null;
     username: string;
     uuid: string;
 };
@@ -113,7 +112,7 @@ export type Cluster = {
     /**
      * Optional description for the cluster (max 150 characters).
      */
-    description?: string;
+    description?: string | null;
     /**
      * Encryption configuration for the cluster.
      *
@@ -123,10 +122,17 @@ export type Cluster = {
      * `PUT /clusters/{clusterUuid}/encryption`. `status` is only present when
      * `type` is `External` and reflects the operator reconciliation state —
      * poll for `Ready` to confirm BYOK is active.
+     *
+     * `primaryKeyStatus` / `secondaryKeyStatus` are the status of each key and
+     * every grant on it, with the reason when Camunda cannot use the key. They
+     * are present only for `External` clusters, once the cluster reports them.
+     * `secondaryKeyStatus` is present only when `secondaryKeyArn` is.
      */
     encryption: {
         primaryKeyArn?: string;
+        primaryKeyStatus?: EncryptionKeyStatus;
         secondaryKeyArn?: string;
+        secondaryKeyStatus?: EncryptionKeyStatus;
         status?: EncryptionStatus;
         type: ClusterEncryptionKey;
     };
@@ -143,7 +149,7 @@ export type Cluster = {
     ipallowlist?: Array<{
         description: string;
         ip: string;
-    }>;
+    }> | null;
     /**
      * DEPRECATED: this field is going to be removed in June 2025, please use ipallowlist instead
      *
@@ -152,7 +158,7 @@ export type Cluster = {
     ipwhitelist?: Array<{
         description: string;
         ip: string;
-    }>;
+    }> | null;
     labels?: Array<string>;
     /**
      * Endpoints for the components running in your Camunda cluster.
@@ -180,7 +186,7 @@ export type Cluster = {
      * The data center where your Camunda cluster is running.
      */
     region: {
-        name: string;
+        name?: string;
         uuid: string;
     };
     /**
@@ -300,7 +306,30 @@ export type CreatedClusterClient = {
     uuid: string;
 };
 
-export type EncryptionStatus = 'Ready' | 'ProviderError' | 'ExternalEncryptionKeyNotReady' | 'ExternalEncryptionKeyNotSupplied' | 'CreationError' | 'EncryptedStorageNotReady';
+/**
+ * The status of one external encryption key and every grant on it, as the
+ * operator reports it.
+ */
+export type EncryptionKeyStatus = {
+    /**
+     * When the reason last changed, in ISO 8601.
+     */
+    lastTransitionTime?: string;
+    /**
+     * The detail of the reason, for example the request that AWS KMS denied.
+     */
+    message: string;
+    /**
+     * Why the key is or is not usable. Only `Ready` means that Camunda can use
+     * the key and every grant on it. `KeyAccessDenied`, `KeyNotUsable` and
+     * `KeyNotEnabled` need an action on the key in AWS KMS. `Pending`,
+     * `ProviderUnavailable` and `InternalError` clear without an action. The
+     * reason can be a value that is not named here.
+     */
+    reason: string;
+};
+
+export type EncryptionStatus = 'Ready' | 'ProviderError' | 'ExternalEncryptionKeyNotReady' | 'ExternalEncryptionKeyNotSupplied' | 'ExternalEncryptionKeyGrantNotReady' | 'CreationError' | 'EncryptedStorageNotReady';
 
 export type FailoverResult = {
     newClusterId: string;
