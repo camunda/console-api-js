@@ -11,13 +11,13 @@ export const zAuditDto = z.object({
         'd'
     ]),
     entity: z.string(),
-    entityAttribute: z.string().optional(),
-    entityAttributeValueFrom: z.string().optional(),
-    entityAttributeValueTo: z.string().optional(),
+    entityAttribute: z.string().nullish(),
+    entityAttributeValueFrom: z.string().nullish(),
+    entityAttributeValueTo: z.string().nullish(),
     entityId: z.string(),
     orgId: z.string(),
-    parentEntity: z.string().optional(),
-    parentEntityId: z.string().optional(),
+    parentEntity: z.string().nullish(),
+    parentEntityId: z.string().nullish(),
     service: z.string(),
     timestamp: z.number().optional(),
     userId: z.string()
@@ -61,11 +61,10 @@ export const zBackupDto = z.object({
 });
 
 export const zByomClientDto = z.object({
-    created: z.iso.datetime(),
-    createdBy: z.string(),
-    createdByName: z.string(),
-    lastUsed: z.iso.datetime(),
-    name: z.string(),
+    created: z.iso.datetime().nullable(),
+    createdBy: z.string().nullable(),
+    createdByName: z.string().optional(),
+    lastUsed: z.iso.datetime().nullish(),
     username: z.string(),
     uuid: z.string()
 });
@@ -204,11 +203,30 @@ export const zCreatedClusterClient = z.object({
     uuid: z.string()
 });
 
+/**
+ * The status of one external encryption key and every grant on it, as the
+ * operator reports it.
+ */
+export const zEncryptionKeyStatus = z.object({
+    lastTransitionTime: z.string().register(z.globalRegistry, {
+        description: 'When the reason last changed, in ISO 8601.'
+    }).optional(),
+    message: z.string().register(z.globalRegistry, {
+        description: 'The detail of the reason, for example the request that AWS KMS denied.'
+    }),
+    reason: z.string().register(z.globalRegistry, {
+        description: 'Why the key is or is not usable. Only `Ready` means that Camunda can use\nthe key and every grant on it. `KeyAccessDenied`, `KeyNotUsable` and\n`KeyNotEnabled` need an action on the key in AWS KMS. `Pending`,\n`ProviderUnavailable` and `InternalError` clear without an action. The\nreason can be a value that is not named here.'
+    })
+}).register(z.globalRegistry, {
+    description: 'The status of one external encryption key and every grant on it, as the\noperator reports it.'
+});
+
 export const zEncryptionStatus = z.enum([
     'Ready',
     'ProviderError',
     'ExternalEncryptionKeyNotReady',
     'ExternalEncryptionKeyNotSupplied',
+    'ExternalEncryptionKeyGrantNotReady',
     'CreationError',
     'EncryptedStorageNotReady'
 ]);
@@ -233,16 +251,16 @@ export const zCluster = z.object({
         description: 'The software channel your cluster is running on.'
     }),
     created: z.iso.datetime(),
-    description: z.string().register(z.globalRegistry, {
-        description: 'Optional description for the cluster (max 150 characters).'
-    }).optional(),
+    description: z.string().nullish(),
     encryption: z.object({
         primaryKeyArn: z.string().optional(),
+        primaryKeyStatus: zEncryptionKeyStatus.optional(),
         secondaryKeyArn: z.string().optional(),
+        secondaryKeyStatus: zEncryptionKeyStatus.optional(),
         status: zEncryptionStatus.optional(),
         type: zClusterEncryptionKey
     }).register(z.globalRegistry, {
-        description: 'Encryption configuration for the cluster.\n\n`type` matches what was selected at create-time (Software / Hardware /\nProvider / External). `primaryKeyArn` / `secondaryKeyArn` are populated\nonly for `External` (BYOK) clusters once keys have been configured via\n`PUT /clusters/{clusterUuid}/encryption`. `status` is only present when\n`type` is `External` and reflects the operator reconciliation state —\npoll for `Ready` to confirm BYOK is active.'
+        description: 'Encryption configuration for the cluster.\n\n`type` matches what was selected at create-time (Software / Hardware /\nProvider / External). `primaryKeyArn` / `secondaryKeyArn` are populated\nonly for `External` (BYOK) clusters once keys have been configured via\n`PUT /clusters/{clusterUuid}/encryption`. `status` is only present when\n`type` is `External` and reflects the operator reconciliation state —\npoll for `Ready` to confirm BYOK is active.\n\n`primaryKeyStatus` / `secondaryKeyStatus` are the status of each key and\nevery grant on it, with the reason when Camunda cannot use the key. They\nare present only for `External` clusters, once the cluster reports them.\n`secondaryKeyStatus` is present only when `secondaryKeyArn` is.'
     }),
     generation: z.object({
         name: z.string(),
@@ -253,15 +271,11 @@ export const zCluster = z.object({
     ipallowlist: z.array(z.object({
         description: z.string(),
         ip: z.string()
-    })).register(z.globalRegistry, {
-        description: 'the IP Allowlist rules for your cluster - will only be returned if your organization has the feature enabled and the client you are using has the permission to see it.'
-    }).optional(),
+    })).nullish(),
     ipwhitelist: z.array(z.object({
         description: z.string(),
         ip: z.string()
-    })).register(z.globalRegistry, {
-        description: 'DEPRECATED: this field is going to be removed in June 2025, please use ipallowlist instead\n\nthe IP Whitelist rules for your cluster - will only be returned if your organization has the feature enabled and the client you are using has the permission to see it.'
-    }).optional(),
+    })).nullish(),
     labels: z.array(z.string()).optional(),
     links: z.object({
         connectors: z.string().optional(),
@@ -284,7 +298,7 @@ export const zCluster = z.object({
         description: 'Also called `ClusterPlanType`, this describes the hardware used to run your Camunda cluster.'
     }),
     region: z.object({
-        name: z.string(),
+        name: z.string().optional(),
         uuid: z.string()
     }).register(z.globalRegistry, {
         description: 'The data center where your Camunda cluster is running.'
