@@ -50,12 +50,15 @@
             "type": "string"
           },
           "entityAttribute": {
+            "nullable": true,
             "type": "string"
           },
           "entityAttributeValueFrom": {
+            "nullable": true,
             "type": "string"
           },
           "entityAttributeValueTo": {
+            "nullable": true,
             "type": "string"
           },
           "entityId": {
@@ -65,9 +68,11 @@
             "type": "string"
           },
           "parentEntity": {
+            "nullable": true,
             "type": "string"
           },
           "parentEntityId": {
+            "nullable": true,
             "type": "string"
           },
           "service": {
@@ -190,9 +195,11 @@
         "properties": {
           "created": {
             "format": "date-time",
+            "nullable": true,
             "type": "string"
           },
           "createdBy": {
+            "nullable": true,
             "type": "string"
           },
           "createdByName": {
@@ -200,9 +207,7 @@
           },
           "lastUsed": {
             "format": "date-time",
-            "type": "string"
-          },
-          "name": {
+            "nullable": true,
             "type": "string"
           },
           "username": {
@@ -214,12 +219,9 @@
         },
         "required": [
           "uuid",
-          "name",
           "username",
           "created",
-          "lastUsed",
-          "createdBy",
-          "createdByName"
+          "createdBy"
         ],
         "type": "object"
       },
@@ -312,16 +314,23 @@
           },
           "description": {
             "description": "Optional description for the cluster (max 150 characters).",
+            "nullable": true,
             "type": "string"
           },
           "encryption": {
-            "description": "Encryption configuration for the cluster.\n\n`type` matches what was selected at create-time (Software / Hardware /\nProvider / External). `primaryKeyArn` / `secondaryKeyArn` are populated\nonly for `External` (BYOK) clusters once keys have been configured via\n`PUT /clusters/{clusterUuid}/encryption`. `status` is only present when\n`type` is `External` and reflects the operator reconciliation state —\npoll for `Ready` to confirm BYOK is active.",
+            "description": "Encryption configuration for the cluster.\n\n`type` matches what was selected at create-time (Software / Hardware /\nProvider / External). `primaryKeyArn` / `secondaryKeyArn` are populated\nonly for `External` (BYOK) clusters once keys have been configured via\n`PUT /clusters/{clusterUuid}/encryption`. `status` is only present when\n`type` is `External` and reflects the operator reconciliation state —\npoll for `Ready` to confirm BYOK is active.\n\n`primaryKeyStatus` / `secondaryKeyStatus` are the status of each key and\nevery grant on it, with the reason when Camunda cannot use the key. They\nare present only for `External` clusters, once the cluster reports them.\n`secondaryKeyStatus` is present only when `secondaryKeyArn` is.",
             "properties": {
               "primaryKeyArn": {
                 "type": "string"
               },
+              "primaryKeyStatus": {
+                "$ref": "#/components/schemas/EncryptionKeyStatus"
+              },
               "secondaryKeyArn": {
                 "type": "string"
+              },
+              "secondaryKeyStatus": {
+                "$ref": "#/components/schemas/EncryptionKeyStatus"
               },
               "status": {
                 "$ref": "#/components/schemas/EncryptionStatus"
@@ -368,6 +377,7 @@
               ],
               "type": "object"
             },
+            "nullable": true,
             "type": "array"
           },
           "ipwhitelist": {
@@ -387,6 +397,7 @@
               ],
               "type": "object"
             },
+            "nullable": true,
             "type": "array"
           },
           "labels": {
@@ -458,7 +469,6 @@
               }
             },
             "required": [
-              "name",
               "uuid"
             ],
             "type": "object"
@@ -760,12 +770,36 @@
         ],
         "type": "object"
       },
+      "EncryptionKeyStatus": {
+        "additionalProperties": false,
+        "description": "The status of one external encryption key and every grant on it, as the\noperator reports it.",
+        "properties": {
+          "lastTransitionTime": {
+            "description": "When the reason last changed, in ISO 8601.",
+            "type": "string"
+          },
+          "message": {
+            "description": "The detail of the reason, for example the request that AWS KMS denied.",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Why the key is or is not usable. Only `Ready` means that Camunda can use\nthe key and every grant on it. `KeyAccessDenied`, `KeyNotUsable` and\n`KeyNotEnabled` need an action on the key in AWS KMS. `Pending`,\n`ProviderUnavailable` and `InternalError` clear without an action. The\nreason can be a value that is not named here.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "message"
+        ],
+        "type": "object"
+      },
       "EncryptionStatus": {
         "enum": [
           "Ready",
           "ProviderError",
           "ExternalEncryptionKeyNotReady",
           "ExternalEncryptionKeyNotSupplied",
+          "ExternalEncryptionKeyGrantNotReady",
           "CreationError",
           "EncryptedStorageNotReady"
         ],
