@@ -1,3 +1,11 @@
+## [0.1.1](https://github.com/camunda/console-api-js/compare/v0.1.0...v0.1.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* refresh Console API spec to accept null response fields ([337be8d](https://github.com/camunda/console-api-js/commit/337be8d65113abfc4954841d4f9a511ed3255e66))
+* refresh Console API spec to accept null response fields ([07256b7](https://github.com/camunda/console-api-js/commit/07256b7166b80eeb50086250f06669c3023f2d2e))
+
 # [0.1.0](https://github.com/camunda/console-api-js/compare/v0.0.0...v0.1.0) (2026-11-11)
 
 
