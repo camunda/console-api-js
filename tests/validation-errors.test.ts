@@ -103,10 +103,13 @@ describe('request validation failures', () => {
       const { client, apiCalls, events } = makeClient(() => Response.json({}), {
         CAMUNDA_SDK_VALIDATION: 'req:strict,res:none',
       });
-      const err: unknown = await call(client, op, { [SENTINEL]: SENTINEL }).catch((e) => e);
-      // A non-SDK error means the request was sent and failed at the HTTP layer: this
-      // operation's body schema accepted the extra field, so there is nothing to check.
-      if (!isSdkError(err)) return;
+      const err: unknown = await call(client, op, { [SENTINEL]: SENTINEL }).then(
+        () => undefined,
+        (e) => e
+      );
+      if (err === undefined) return; // this operation's body schema accepted the extra field
+      expect(isSdkError(err)).toBe(true);
+      if (!isSdkError(err)) throw new Error('unreachable');
       expect(err.name).toBe('ValidationSdkError');
       expect(err).toMatchObject({ side: 'request', operationId: op.operationId });
       expectNoLeak(err, events);
@@ -121,8 +124,11 @@ describe('request validation failures', () => {
     const results = await Promise.allSettled(
       withBody.map((op) => call(client, op, { [SENTINEL]: SENTINEL }))
     );
-    const rejected = results.filter((r) => r.status === 'rejected').length;
-    expect(rejected).toBeGreaterThan(withBody.length / 2);
+    const rejected = results.filter((r) => r.status === 'rejected');
+    expect(rejected.length).toBeGreaterThan(withBody.length / 2);
+    for (const r of rejected) {
+      expect(isSdkError(r.reason)).toBe(true);
+    }
   });
 });
 

@@ -149,6 +149,22 @@ describe('CAMUNDA_SDK_VALIDATION', () => {
     }
   );
 
+  it.each(['req:strict,req:none', 'res:warn,res:none', 'req:strict,res:none,req:none'])(
+    'rejects duplicate scope in %s (OCA alignment)',
+    (raw) => {
+      const errors: string[] = [];
+      const parsed = parseValidation(raw, errors);
+      expect(errors.some((e) => /duplicate scope/.test(e))).toBe(true);
+      expect(parsed).toEqual({ req: 'none', res: 'none' });
+    }
+  );
+
+  it('does not silently disable request validation on req:strict,req:none', () => {
+    expect(() =>
+      resolveConfig({}, { ...creds, CAMUNDA_SDK_VALIDATION: 'req:strict,req:none' })
+    ).toThrow(CamundaConfigurationError);
+  });
+
   it('defaults to req:strict,res:none (stricter than OCA, on purpose)', () => {
     const c = resolveConfig({}, creds);
     expect([c.reqValidation, c.resValidation]).toEqual(['strict', 'none']);

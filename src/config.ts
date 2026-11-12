@@ -76,8 +76,19 @@ export function parseValidation(
       );
       return { req: 'none', res: 'none' };
     }
-    if (lhs === 'req') req = rhs as ValidationMode;
-    else res = rhs as ValidationMode;
+    if (lhs === 'req') {
+      if (req !== undefined) {
+        errors.push(`CAMUNDA_SDK_VALIDATION has duplicate scope "req"`);
+        return { req: 'none', res: 'none' };
+      }
+      req = rhs as ValidationMode;
+    } else {
+      if (res !== undefined) {
+        errors.push(`CAMUNDA_SDK_VALIDATION has duplicate scope "res"`);
+        return { req: 'none', res: 'none' };
+      }
+      res = rhs as ValidationMode;
+    }
   }
   if (req === undefined && res === undefined) {
     errors.push(
