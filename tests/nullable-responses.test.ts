@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ConsoleApiValidationError, ConsoleClient } from '../src';
-import { fakeFetch } from './helpers';
+import { ConsoleClient } from '../src';
+import { fakeFetch, testConfig } from './helpers';
 
 // Live SaaS responses carry nulls and omit fields that an older spec snapshot declared as
 // required strings. These fixtures pin the shapes the published spec accepts, with response
@@ -10,13 +10,13 @@ import { fakeFetch } from './helpers';
 function clientReturning(body: unknown) {
   const fake = fakeFetch(() => Response.json(body));
   return new ConsoleClient({
-    clientId: 'id',
-    clientSecret: 's',
-    baseUrl: 'https://console.test',
-    maxRetries: 0,
+    config: {
+      ...testConfig,
+      CAMUNDA_SDK_HTTP_RETRY_MAX_ATTEMPTS: 1,
+      CAMUNDA_SDK_VALIDATION: 'req:strict,res:strict',
+    },
     fetch: fake.fetch,
     env: {},
-    validateResponses: true,
   });
 }
 
@@ -108,16 +108,18 @@ describe('responses with null and omitted fields pass validation', () => {
     ],
   ])('getMonitoringClients: %s', async (_, client) => {
     const body = { clients: [client], status: byomStatus };
-    await expect(clientReturning(body).getMonitoringClients('cluster-1')).resolves.toEqual(body);
+    await expect(
+      clientReturning(body).getMonitoringClients({ clusterUuid: 'cluster-1' })
+    ).resolves.toEqual(body);
   });
 });
 
 describe('monitoring-client credentials still require a password', () => {
   const calls = {
     createMonitoringClient: (c: ConsoleClient) =>
-      c.createMonitoringClient('cluster-1', { username: 'monitor' }),
+      c.createMonitoringClient({ clusterUuid: 'cluster-1', username: 'monitor' }),
     rotateMonitoringClientPassword: (c: ConsoleClient) =>
-      c.rotateMonitoringClientPassword('cluster-1', 'client-1'),
+      c.rotateMonitoringClientPassword({ clusterUuid: 'cluster-1', clientUuid: 'client-1' }),
   };
 
   it.each(Object.entries(calls))('%s accepts a response with a password', async (_, call) => {
@@ -126,14 +128,18 @@ describe('monitoring-client credentials still require a password', () => {
   });
 
   it.each(Object.entries(calls))('%s rejects a response without a password', async (_, call) => {
-    await expect(call(clientReturning(byomClient))).rejects.toBeInstanceOf(
-      ConsoleApiValidationError
-    );
+    await expect(call(clientReturning(byomClient))).rejects.toMatchObject({
+      name: 'ValidationSdkError',
+      side: 'response',
+    });
   });
 });
 
 it('still rejects a wrongly typed value, so validation is really on', async () => {
   await expect(
     clientReturning([{ ...cluster, description: 42 }]).getClusters()
-  ).rejects.toBeInstanceOf(ConsoleApiValidationError);
+  ).rejects.toMatchObject({
+    name: 'ValidationSdkError',
+    side: 'response',
+  });
 });
