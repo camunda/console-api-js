@@ -1,3 +1,10 @@
+# [0.2.0](https://github.com/camunda/console-api-js/compare/v0.1.1...v0.2.0) (2026-11-13)
+
+
+### Features
+
+* align ergonomics with @camunda8/orchestration-cluster-api ([#17](https://github.com/camunda/console-api-js/issues/17)) ([ab10d36](https://github.com/camunda/console-api-js/commit/ab10d36b7d7f3388df45e9e96eb77c10e10a2ca5)), closes [#13](https://github.com/camunda/console-api-js/issues/13) [#9](https://github.com/camunda/console-api-js/issues/9) [#10](https://github.com/camunda/console-api-js/issues/10) [#13](https://github.com/camunda/console-api-js/issues/13)
+
 ## [0.1.1](https://github.com/camunda/console-api-js/compare/v0.1.0...v0.1.1) (2026-11-12)
 
 
