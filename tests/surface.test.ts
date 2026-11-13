@@ -1,17 +1,34 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ConsoleClient, OPERATION_METHODS } from '../src';
-import { fakeFetch } from './helpers';
+import { fakeFetch, isApiCall, testConfig } from './helpers';
 
+type Schema = {
+  type?: string;
+  required?: string[];
+  properties?: Record<string, unknown>;
+  $ref?: string;
+};
 type Spec = {
   paths: Record<
     string,
-    Record<string, { operationId: string; requestBody?: unknown; deprecated?: boolean }>
+    Record<
+      string,
+      {
+        operationId: string;
+        requestBody?: { content: { 'application/json'?: { schema: Schema } } };
+        deprecated?: boolean;
+      }
+    >
   >;
+  components: { schemas: Record<string, Schema> };
 };
 const spec: Spec = JSON.parse(
   readFileSync(new URL('../spec/console-api.json', import.meta.url), 'utf8')
 );
+
+const deref = (schema: Schema): Schema =>
+  schema.$ref ? spec.components.schemas[schema.$ref.split('/').pop() as string] : schema;
 
 const operations = Object.entries(spec.paths).flatMap(([path, methods]) =>
   Object.entries(methods).map(([method, op]) => ({
@@ -20,6 +37,9 @@ const operations = Object.entries(spec.paths).flatMap(([path, methods]) =>
     operationId: op.operationId,
     hasBody: op.requestBody !== undefined,
     pathParams: [...path.matchAll(/\{(\w+)\}/g)].map((m) => m[1]),
+    bodySchema: op.requestBody?.content?.['application/json']?.schema
+      ? deref(op.requestBody.content['application/json'].schema as Schema)
+      : undefined,
   }))
 );
 
@@ -41,24 +61,42 @@ describe('API surface', () => {
     expect(new Set(methods).size).toBe(methods.length);
   });
 
-  // Convention for every method: path parameters in URL order, then the body if the operation has one.
+  // The facade merges path parameters and body fields into one argument object, so a spec that
+  // gives both the same name would silently drop one side. Fail loudly instead: a future spec
+  // version with such a clash must be handled deliberately (a generation-time error), never
+  // papered over.
+  it.each(operations)(
+    '$operationId has no field that is both a path parameter and a body field',
+    (op) => {
+      const bodyProps = Object.keys(op.bodySchema?.properties ?? {});
+      expect(op.pathParams.filter((p) => bodyProps.includes(p))).toEqual([]);
+    }
+  );
+
+  // Convention for every method: one object argument with path parameters and body fields
+  // merged (OCA style), then an optional per-call options argument.
   it.each(operations)('$operationId sends $method $path with a bearer token', async (op) => {
     const { fetch, calls } = fakeFetch(() => new Response('{}', { status: 200 }));
     const client = new ConsoleClient({
-      clientId: 'id',
-      clientSecret: 'secret',
-      baseUrl: 'https://console.test',
-      validateRequests: false,
+      config: {
+        ...testConfig,
+        CAMUNDA_SDK_VALIDATION: 'req:none,res:none',
+        CAMUNDA_SDK_HTTP_RETRY_MAX_ATTEMPTS: 1,
+      },
       fetch,
       env: {},
     });
-    const args: unknown[] = op.pathParams.map((p) => `${p}-value`);
-    if (op.hasBody) args.push({ marker: op.operationId });
+    const args: Record<string, unknown> = {};
+    for (const p of op.pathParams) args[p] = `${p}-value`;
+    if (op.hasBody) args.marker = op.operationId;
 
     const methodName = OPERATION_METHODS[op.operationId as keyof typeof OPERATION_METHODS];
-    await (client[methodName] as (...a: unknown[]) => Promise<unknown>)(...args);
+    const method = client[methodName] as (...a: unknown[]) => Promise<unknown>;
+    await (op.hasBody || op.pathParams.length > 0
+      ? method.call(client, args)
+      : method.call(client));
 
-    const apiCalls = calls.filter((c) => c.url.startsWith('https://console.test'));
+    const apiCalls = calls.filter(isApiCall);
     expect(apiCalls).toHaveLength(1);
     const [call] = apiCalls;
     const expectedPath = op.path.replace(/\{(\w+)\}/g, (_, p) => `${p}-value`);

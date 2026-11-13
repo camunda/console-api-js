@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TokenProvider } from '../src/auth';
-import { createConsoleFetch, parseRetryAfter } from '../src/transport';
+import { createConsoleFetch, parseRetryAfter, resolveRetryPolicy } from '../src/transport';
 import { fakeFetch } from './helpers';
 
 const OAUTH = 'https://login.cloud.camunda.io/oauth/token';
@@ -11,22 +11,24 @@ const cfg = {
   audience: 'api.cloud.camunda.io',
 };
 
+const POLICY = { maxAttempts: 4, baseDelayMs: 100, maxDelayMs: 10_000 };
+
 function setup(
   handler: Parameters<typeof fakeFetch>[0],
-  maxRetries = 3
+  retry: Partial<typeof POLICY> = {}
 ): ReturnType<typeof fakeFetch> & { send: typeof fetch; sleeps: number[] } {
   const fake = fakeFetch(handler);
   const sleeps: number[] = [];
   const send = createConsoleFetch({
     fetch: fake.fetch,
     tokens: new TokenProvider(cfg, fake.fetch),
-    maxRetries,
+    retry: { ...POLICY, ...retry },
     sleep: async (ms) => {
       sleeps.push(ms);
     },
     random: () => 1,
   });
-  return { ...fake, send, sleeps };
+  return { ...fake, send: send as unknown as typeof fetch, sleeps };
 }
 
 const api = <C extends { url: string }>(calls: C[]) => calls.filter((c) => c.url !== OAUTH);
@@ -80,8 +82,8 @@ describe('transport', () => {
     expect(api(t.calls)).toHaveLength(4);
   });
 
-  it('stops after maxRetries and returns the last response', async () => {
-    const t = setup(() => new Response(null, { status: 429 }), 2);
+  it('stops after maxAttempts total attempts and returns the last response', async () => {
+    const t = setup(() => new Response(null, { status: 429 }), { maxAttempts: 3 });
     const res = await t.send('https://console.test/x');
     expect(res.status).toBe(429);
     expect(api(t.calls)).toHaveLength(3);
@@ -97,7 +99,10 @@ describe('transport', () => {
     const post = setup(fail);
     await expect(
       post.send('https://console.test/x', { method: 'POST', body: '{}' })
-    ).rejects.toThrow('fetch failed');
+    ).rejects.toMatchObject({
+      name: 'NetworkSdkError',
+      cause: expect.objectContaining({ message: 'fetch failed' }),
+    });
     expect(api(post.calls)).toHaveLength(1);
   });
 
@@ -107,10 +112,40 @@ describe('transport', () => {
     expect(api(t.calls).map((c) => c.body)).toEqual(['{"a":1}', '{"a":1}']);
   });
 
+  it('backs off with full jitter bounded by base * 2^attempt and the cap', async () => {
+    const t = setup(() => new Response(null, { status: 429 }), {
+      maxAttempts: 4,
+      baseDelayMs: 100,
+      maxDelayMs: 250,
+    });
+    await t.send('https://console.test/x');
+    // random() === 1, so each delay is the full capped window: 100, 200, 250 (cap).
+    expect(t.sleeps).toEqual([100, 200, 250]);
+  });
+
   it('parses Retry-After as seconds or HTTP date', () => {
     expect(parseRetryAfter('3')).toBe(3000);
     expect(parseRetryAfter(new Date(10_000).toUTCString(), 4_000)).toBe(6000);
     expect(parseRetryAfter('nonsense')).toBeUndefined();
     expect(parseRetryAfter(null)).toBeUndefined();
+  });
+});
+
+describe('resolveRetryPolicy', () => {
+  it('returns the global policy when no override is given', () => {
+    expect(resolveRetryPolicy(POLICY, undefined)).toBe(POLICY);
+  });
+
+  it('retry: false means a single attempt', () => {
+    expect(resolveRetryPolicy(POLICY, false)).toEqual({ ...POLICY, maxAttempts: 1 });
+  });
+
+  it('a partial override merges with the global policy', () => {
+    expect(resolveRetryPolicy(POLICY, { maxAttempts: 8 })).toEqual({ ...POLICY, maxAttempts: 8 });
+    expect(resolveRetryPolicy(POLICY, { baseDelayMs: 50, maxDelayMs: 500 })).toEqual({
+      maxAttempts: POLICY.maxAttempts,
+      baseDelayMs: 50,
+      maxDelayMs: 500,
+    });
   });
 });

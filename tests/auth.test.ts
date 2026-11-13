@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ConsoleApiAuthError, TokenProvider } from '../src/auth';
+import { TokenProvider } from '../src/auth';
+import { isSdkError } from '../src/errors';
 import { fakeFetch } from './helpers';
 
 const OAUTH = 'https://login.cloud.camunda.io/oauth/token';
@@ -54,11 +55,24 @@ describe('TokenProvider', () => {
     ['an error status', new Response('denied', { status: 401 }), /HTTP 401/],
     ['a non-JSON body', new Response('<html>'), /non-JSON/],
     ['no access_token', Response.json({ expires_in: 1 }), /no access_token/],
-  ])('throws ConsoleApiAuthError on %s', async (_name, response, message) => {
+  ])('throws AuthSdkError on %s', async (_name, response, message) => {
     const p = new TokenProvider(cfg, (async () => response) as typeof fetch);
     const err = await p.getToken().catch((e) => e);
-    expect(err).toBeInstanceOf(ConsoleApiAuthError);
+    expect(isSdkError(err)).toBe(true);
+    expect(err.name).toBe('AuthSdkError');
     expect(err.message).toMatch(message);
+  });
+
+  it('never puts the token endpoint response body into the error', async () => {
+    const secret = 'super-secret-token-endpoint-body';
+    const p = new TokenProvider(
+      cfg,
+      (async () => new Response(secret, { status: 400 })) as typeof fetch
+    );
+    const err = await p.getToken().catch((e) => e);
+    expect(err.name).toBe('AuthSdkError');
+    expect(JSON.stringify(err)).not.toContain(secret);
+    expect(err.message).not.toContain(secret);
   });
 
   it('does not cache a failed token request', async () => {
