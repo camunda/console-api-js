@@ -13,6 +13,11 @@ on:
 permissions:
   contents: read
 
+env:
+  # Generate from the committed spec snapshot only. Upstream changes arrive through
+  # spec-drift.yml and a reviewed PR, never silently inside a CI build or a release.
+  CONSOLE_API_SPEC_OFFLINE: "1"
+
 jobs:
   commitlint:
     if: github.event_name == 'pull_request'
@@ -35,7 +40,8 @@ jobs:
           node-version: 22.x
           cache: "npm"
       - run: npm ci
-      # Regenerating from the COMMITTED spec snapshot must reproduce the committed src/gen.
+      # Regenerating from the COMMITTED spec snapshot (CONSOLE_API_SPEC_OFFLINE) must reproduce the
+      # committed src/gen.
       # A generator bump (e.g. Renovate on @hey-api/openapi-ts) must land with its regenerated output.
       - name: Generation drift
         run: |

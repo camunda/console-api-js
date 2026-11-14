@@ -31,7 +31,8 @@
   "scripts": {
     "spec:fetch": "tsx scripts/fetch-spec.ts",
     "spec:check": "tsx scripts/fetch-spec.ts --check",
-    "generate": "rimraf src/gen && openapi-ts",
+    "generate": "npm run spec:fetch && npm run generate:offline",
+    "generate:offline": "rimraf src/gen && openapi-ts",
     "build": "npm run generate && npm run sync-readme:check && npm run typecheck && npm run lint && npm run bundle",
     "test": "vitest run",
     "test:integration": "CONSOLE_API_INTEGRATION=1 vitest run",
