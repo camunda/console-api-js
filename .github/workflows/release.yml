@@ -13,6 +13,11 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  # Generate from the committed spec snapshot only. Upstream changes arrive through
+  # spec-drift.yml and a reviewed PR, never silently inside a CI build or a release.
+  CONSOLE_API_SPEC_OFFLINE: "1"
+
 jobs:
   release:
     runs-on: ubuntu-latest

@@ -4,6 +4,11 @@
  *
  *   tsx scripts/fetch-spec.ts           # refresh the snapshot
  *   tsx scripts/fetch-spec.ts --check   # exit 1 if the published spec differs from the snapshot
+ *
+ * `npm run generate` runs this first, so a local generate builds from the deployed spec, as the
+ * Orchestration Cluster SDKs do. With CONSOLE_API_SPEC_OFFLINE=1 it skips the fetch and leaves the
+ * committed snapshot as the only input: CI and the release workflow set it, so a published build
+ * never contains a spec that was not committed and reviewed.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -25,9 +30,24 @@ function sortKeys(value: unknown): unknown {
   return value;
 }
 
-const res = await fetch(SPEC_URL);
+if (process.env.CONSOLE_API_SPEC_OFFLINE === '1' && !process.argv.includes('--check')) {
+  console.log('CONSOLE_API_SPEC_OFFLINE=1: using the committed spec/console-api.json.');
+  process.exit(0);
+}
+
+let res: Response;
+try {
+  res = await fetch(SPEC_URL);
+} catch (err) {
+  console.error(
+    `Failed to fetch ${SPEC_URL}: ${(err as Error).message}. Set CONSOLE_API_SPEC_OFFLINE=1 to generate from the committed snapshot.`
+  );
+  process.exit(2);
+}
 if (!res.ok) {
-  console.error(`Failed to fetch ${SPEC_URL}: HTTP ${res.status}`);
+  console.error(
+    `Failed to fetch ${SPEC_URL}: HTTP ${res.status}. Set CONSOLE_API_SPEC_OFFLINE=1 to generate from the committed snapshot.`
+  );
   process.exit(2);
 }
 const spec = (await res.json()) as { info?: { version?: string } };
@@ -42,7 +62,11 @@ if (process.argv.includes('--check')) {
     process.exit(1);
   }
   console.log(`Spec snapshot is up to date (version ${spec.info?.version}).`);
+} else if (readFileSync(SNAPSHOT, 'utf8') === normalised) {
+  console.log(`spec/console-api.json is up to date (version ${spec.info?.version}).`);
 } else {
   writeFileSync(SNAPSHOT, normalised);
-  console.log(`Wrote spec/console-api.json (version ${spec.info?.version}).`);
+  console.log(
+    `Updated spec/console-api.json from the published spec (version ${spec.info?.version}). Review and commit it with the regenerated src/gen.`
+  );
 }
