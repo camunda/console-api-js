@@ -46,3 +46,14 @@ It is **not** part of the Orchestration Cluster API SDKs. The Console API is the
 - `npm run build` — generate (fetches the live spec unless `CONSOLE_API_SPEC_OFFLINE=1`), README snippet check, typecheck, lint, bundle.
 - `npm test` — unit tests (no network).
 - `npm run test:integration` — read-only checks against a real SaaS org with response validation on. Needs `CONSOLE_API_INTEGRATION=1` and `CAMUNDA_CONSOLE_CLIENT_ID`/`CAMUNDA_CONSOLE_CLIENT_SECRET`.
+
+### Backporting to stable branches
+
+`.github/workflows/backport.yml` calls camunda/sdk-infra's shared `sdk-backport.yml` (`korthout/backport-action`, running as `camunda-sdk-automation`; the same flow as the other SDKs). It is configured by `.github/backport.yml`, read from the **target** branch. There is no stable branch yet; a `stable/N` cut from `main` inherits the config. Then create the label `backport stable/<N>`.
+
+- Add the label `backport stable/<N>` to a PR. The backport PR opens when the PR merges, or right away if it is already merged.
+- Or comment `/backport` on a merged PR to re-run it for its labels. PRs from forks can only be backported this way.
+
+After the cherry-pick, the workflow adds a `chore(gen): regenerate for backport of #N` commit: `spec/` and `src/gen/` are restored from the target branch, regenerated with `npm run generate:offline`, then typechecked and unit-tested. Never backport a spec refresh on its own; each branch keeps its own spec.
+
+If the cherry-pick conflicts, the action opens a **draft** PR with the conflicts committed (a draft always means a conflict). Resolve it on the backport branch, then comment `/backport` on the source PR to regenerate. Merge dependent backports in source order. If regenerating fails, the bot comments on the backport PR.
