@@ -14,7 +14,10 @@ describe('Console API (live, read-only)', () => {
     config: { CAMUNDA_SDK_VALIDATION: 'req:strict,res:strict' },
   });
 
-  it('getParameters matches the spec', async () => {
+  // Skipped: the integration suite's API client gets HTTP 403 ("You are not supposed to be here")
+  // from GET /clusters/parameters, a missing scope or an upstream Console defect. Re-enable once
+  // the client has the required scope or upstream is fixed. Refs #16
+  it.skip('getParameters matches the spec', async () => {
     const params = await consoleApi.getParameters();
     expect(params).toBeDefined();
   });
