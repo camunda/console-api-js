@@ -132,7 +132,7 @@ export function createConsoleFetch(options: TransportOptions): OperationFetch {
     const idempotent =
       IDEMPOTENT.has(original.method.toUpperCase()) &&
       !ctx?.nonIdempotent &&
-      !NON_IDEMPOTENT_PATH.test(original.url);
+      !NON_IDEMPOTENT_PATH.test(new URL(original.url).pathname);
     let refreshedAfter401 = false;
     let attempt = 0; // retries performed so far
     const maxAttempts = Math.max(1, retryPolicy.maxAttempts);

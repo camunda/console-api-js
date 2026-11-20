@@ -236,24 +236,21 @@ export function unknownFields(
  * A path parameter value that serializes to an empty or `.`/`..` segment would not survive
  * URL construction: the WHATWG URL parser collapses empty segments and resolves dot ones, so
  * `name: '..'` turns `DELETE /clusters/{id}/external-idps/..` into a DELETE of the cluster
- * itself. The generated serializer stringifies non-string values (an array `['..']` becomes
- * the segment `..`), so the check stringifies the same way rather than rejecting non-strings
- * outright. Values containing `/` or `%` are percent-encoded into their segment, so they are
- * safe; a percent-encoded dot (`%2E`) decodes to one and is not.
+ * itself. The generated serializer stringifies scalars and arrays (`['..']` becomes `..`, `[]`
+ * becomes ``), and expands objects into `key,value` pairs that can carry `/` and `?` unencoded,
+ * so objects and empty arrays are always rejected. Values containing `/` or `%` are
+ * percent-encoded into their segment (`%2e` is sent as `%252e`), so they are safe and are not
+ * decoded here.
  */
 function unsafePathSegment(value: unknown): boolean {
   if (value === undefined || value === null) return false;
+  if (typeof value === 'object' && !Array.isArray(value)) return true;
+  if (Array.isArray(value) && value.length === 0) return true;
   const values = Array.isArray(value) ? value : [value];
   return values.some((v) => {
+    if (v !== null && typeof v === 'object') return true;
     const s = typeof v === 'string' ? v : String(v);
-    if (s === '' || s === '.' || s === '..') return true;
-    if (!s.includes('%')) return false;
-    try {
-      const decoded = decodeURIComponent(s);
-      return decoded === '.' || decoded === '..';
-    } catch {
-      return false; // malformed percent-encoding: not a dot segment
-    }
+    return s === '' || s === '.' || s === '..';
   });
 }
 
@@ -276,7 +273,7 @@ function assertSafePathParams(operationId: string, path: unknown): void {
             code: 'invalid_string',
             path: ['path', key],
             message:
-              'is empty or a dot segment, which URL resolution would rewrite into a different resource',
+              'is empty, a dot segment, or an object, which URL resolution would rewrite into a different resource',
           },
         ],
       });

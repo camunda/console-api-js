@@ -255,6 +255,30 @@ describe('unsafe path parameters are rejected before URL construction', () => {
       );
     }
   );
+  it.each([[{ '../?': 'x' }], [{}], [[]], [[{ a: 'b' }]]])(
+    'rejects an object or empty-array path value %j',
+    async (name) => {
+      const { console, calls } = client(() => new Response(null, { status: 204 }), {
+        CAMUNDA_SDK_VALIDATION: 'req:none,res:none',
+      });
+      const err = await console
+        .deleteExternalIdp({ clusterUuid: 'c1', name: name as unknown as string })
+        .catch((e) => e);
+      expect(err).toMatchObject({ name: 'ValidationSdkError', side: 'request' });
+      expect(calls.filter(isApiCall)).toHaveLength(0);
+    }
+  );
+  it.each(['%2e', '%2E%2e', '%2e%2e'])(
+    'accepts literal percent-encoded name %j, sent double-encoded',
+    async (name) => {
+      const { console, calls } = client(() => new Response(null, { status: 204 }));
+      await console.deleteExternalIdp({ clusterUuid: 'c1', name });
+      const [call] = calls.filter(isApiCall);
+      expect(new URL(call.url).pathname).toBe(
+        `/clusters/c1/external-idps/${encodeURIComponent(name)}`
+      );
+    }
+  );
   it('sends an array of safe strings joined inside its own segment', async () => {
     const { console, calls } = client(() => new Response(null, { status: 204 }), {
       CAMUNDA_SDK_VALIDATION: 'req:none,res:none',
@@ -336,6 +360,23 @@ describe('putExternalIdpCredential is retried only on 429', () => {
       })
       .catch(() => {});
     expect(calls.filter(isApiCall)).toHaveLength(1);
+  });
+  it('classifies the low-level credential PUT by pathname, ignoring a query string', async () => {
+    const { console, calls } = client(() => new Response(null, { status: 503 }), {
+      CAMUNDA_SDK_HTTP_RETRY_MAX_ATTEMPTS: 3,
+    });
+    await console.client
+      .put({
+        url: '/clusters/{clusterUuid}/external-idps/{name}/credential',
+        path: { clusterUuid: 'c1', name: 'n' },
+        query: { trace: 1 },
+        body: { clientSecret: 's', type: 'client_secret' },
+        throwOnError: false,
+      })
+      .catch(() => {});
+    const api = calls.filter(isApiCall);
+    expect(new URL(api[0].url).search).toBe('?trace=1');
+    expect(api).toHaveLength(1);
   });
   it('still retries 429 on the low-level credential PUT, rate-limited before processing', async () => {
     const { console, calls } = client(
