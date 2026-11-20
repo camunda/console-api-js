@@ -119,12 +119,10 @@ type Result = { data?: unknown; error?: unknown; response?: Response; request?: 
 type AnyRecord = Record<string, unknown>;
 
 /**
- * Operations whose effect is not idempotent even though their HTTP method is: every accepted
- * PutExternalIdpCredential write restarts the cluster's pods to read the new secret, so a
- * transient retry after a lost response could start a second restart, or surface the 409 of
- * the first, still-running change and report a succeeded rotation as failed. The transport
- * retries these only on 429 (the request was rate-limited before it was processed), exactly
- * as it treats POST and PATCH for transient statuses and network errors.
+ * Operations whose effect is not idempotent even though their HTTP method is. The transport
+ * additionally recognizes the credential endpoint by URL (see NON_IDEMPOTENT_PATH in
+ * transport.ts), so calls through the low-level generated client — which carry no facade
+ * context — get the same retry treatment.
  */
 const NON_IDEMPOTENT_OPERATIONS: ReadonlySet<string> = new Set(['PutExternalIdpCredential']);
 
@@ -235,19 +233,55 @@ export function unknownFields(
 }
 
 /**
- * A path parameter value that `encodeURIComponent` leaves unchanged can still rewrite the
- * request URL: the WHATWG URL parser resolves `.` and `..` segments and collapses empty
- * ones, so `name: '..'` would turn `DELETE /clusters/{id}/external-idps/..` into a DELETE of
- * the cluster itself. Reject these before URL construction, whatever the transport does with
- * them. Values with `/` or `%` are encoded by the generated client and stay inside their
- * segment, so they are safe.
+ * A path parameter value that serializes to an empty or `.`/`..` segment would not survive
+ * URL construction: the WHATWG URL parser collapses empty segments and resolves dot ones, so
+ * `name: '..'` turns `DELETE /clusters/{id}/external-idps/..` into a DELETE of the cluster
+ * itself. The generated serializer stringifies non-string values (an array `['..']` becomes
+ * the segment `..`), so the check stringifies the same way rather than rejecting non-strings
+ * outright. Values containing `/` or `%` are percent-encoded into their segment, so they are
+ * safe; a percent-encoded dot (`%2E`) decodes to one and is not.
  */
-function unsafePathParam(value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined;
-  if (value === '' || value === '.' || value === '..') {
-    return 'is empty or a dot segment, which URL resolution would rewrite into a different resource';
+function unsafePathSegment(value: unknown): boolean {
+  if (value === undefined || value === null) return false;
+  const values = Array.isArray(value) ? value : [value];
+  return values.some((v) => {
+    const s = typeof v === 'string' ? v : String(v);
+    if (s === '' || s === '.' || s === '..') return true;
+    if (!s.includes('%')) return false;
+    try {
+      const decoded = decodeURIComponent(s);
+      return decoded === '.' || decoded === '..';
+    } catch {
+      return false; // malformed percent-encoding: not a dot segment
+    }
+  });
+}
+
+/**
+ * Reject any path parameter that would not survive URL construction (see
+ * {@link unsafePathSegment}), before the generated client builds the URL. Runs in the
+ * request-validator wrapper, so it applies to every facade operation in every validation
+ * mode — including `none`, which only disables the schema check, never this safety check.
+ * The error is a ValidationSdkError (side `request`) and never carries the value.
+ */
+function assertSafePathParams(operationId: string, path: unknown): void {
+  if (!path || typeof path !== 'object') return;
+  for (const [key, value] of Object.entries(path as AnyRecord)) {
+    if (unsafePathSegment(value)) {
+      throw validationError({
+        side: 'request',
+        operationId,
+        issues: [
+          {
+            code: 'invalid_string',
+            path: ['path', key],
+            message:
+              'is empty or a dot segment, which URL resolution would rewrite into a different resource',
+          },
+        ],
+      });
+    }
   }
-  return undefined;
 }
 
 /**
@@ -256,9 +290,10 @@ function unsafePathParam(value: unknown): string | undefined {
  * A field listed in both is a spec-level defect: it throws rather than silently overwriting
  * one side (guarded for every operation by the clash test in tests/surface.test.ts).
  *
- * Throws a `ValidationSdkError` (side `request`) when a path parameter would not survive URL
- * construction (see {@link unsafePathParam}) — for every operation, independently of the
- * configured validation mode.
+ * Path parameter safety (empty or dot segments, which URL resolution would rewrite into a
+ * different resource) is enforced in the request-validator wrapper, before the generated
+ * client builds the URL — for every operation and validation mode; see
+ * {@link assertSafePathParams}.
  */
 export function splitArgs(
   operationId: string,
@@ -269,7 +304,6 @@ export function splitArgs(
   const inPath = new Set(pathParams);
   const path: AnyRecord = {};
   const body: AnyRecord = {};
-  const unsafe: { code: string; path: (string | number)[]; message: string }[] = [];
   for (const [k, v] of Object.entries(input)) {
     if (inPath.has(k)) {
       if (k in body) {
@@ -277,15 +311,10 @@ export function splitArgs(
           `${operationId}: field "${k}" is both a path parameter and a body field; this is a defect in the generated client — please open an issue`
         );
       }
-      const problem = unsafePathParam(v);
-      if (problem) unsafe.push({ code: 'invalid_string', path: [k], message: problem });
       path[k] = v;
     } else {
       body[k] = v;
     }
-  }
-  if (unsafe.length > 0) {
-    throw validationError({ side: 'request', operationId, issues: unsafe });
   }
   const result: { path?: AnyRecord; body?: AnyRecord } = {};
   if (pathParams.length > 0) result.path = path;
@@ -370,10 +399,25 @@ export class ConsoleClient {
       mode: ValidationMode,
       validator: unknown
     ): unknown => {
-      if (mode === 'none') return undefined;
-      if (typeof validator !== 'function' || mode === 'strict') return validator;
+      if (mode === 'none') {
+        // Validation mode disables only the schema check, never path safety: a dot-segment
+        // path parameter would be rewritten by URL resolution into a different resource.
+        if (side !== 'request') return undefined;
+        return async (data: unknown) => {
+          assertSafePathParams(operationId, (data as AnyRecord)?.path);
+        };
+      }
+      if (typeof validator !== 'function' || mode === 'strict') {
+        if (side !== 'request' || typeof validator !== 'function') return validator;
+        const strict0 = validator as (data: unknown) => Promise<unknown>;
+        return async (data: unknown) => {
+          assertSafePathParams(operationId, (data as AnyRecord)?.path);
+          return strict0(data);
+        };
+      }
       const strict = validator as (data: unknown) => Promise<unknown>;
       return async (data: unknown) => {
+        if (side === 'request') assertSafePathParams(operationId, (data as AnyRecord)?.path);
         try {
           await strict(data);
         } catch (e) {

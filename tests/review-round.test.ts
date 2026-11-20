@@ -180,7 +180,8 @@ describe('non-2xx bodies shaped like SdkErrors are still wrapped', () => {
 describe('unsafe path parameters are rejected before URL construction', () => {
   // encodeURIComponent leaves '', '.' and '..' unchanged, and the WHATWG URL parser then
   // resolves them: '..' would turn DELETE /clusters/{id}/external-idps/.. into a DELETE of
-  // the cluster itself. The facade rejects these for every operation and validation mode.
+  // the cluster itself. The facade's request validator rejects these before the URL is built,
+  // for every operation and validation mode — including values the serializer stringifies.
   it.each(['..', '.', ''])(
     'rejects name %j on deleteExternalIdp and sends nothing',
     async (name) => {
@@ -189,7 +190,7 @@ describe('unsafe path parameters are rejected before URL construction', () => {
       expect(err).toMatchObject({ name: 'ValidationSdkError', side: 'request' });
       expect(err.message).not.toContain(`"${name}"`);
       expect(err.issues).toEqual([
-        expect.objectContaining({ code: 'invalid_string', path: ['name'] }),
+        expect.objectContaining({ code: 'invalid_string', path: ['path', 'name'] }),
       ]);
       expect(calls.filter(isApiCall)).toHaveLength(0);
     }
@@ -213,8 +214,23 @@ describe('unsafe path parameters are rejected before URL construction', () => {
       })
       .catch((e) => e);
     expect(err).toMatchObject({ name: 'ValidationSdkError', side: 'request' });
+    expect(err.message).toContain('dot segment');
     expect(calls.filter(isApiCall)).toHaveLength(0);
   });
+  it.each([[['..']], [['.']], [['']], [['a', '..']]])(
+    'rejects an array path value %j, which the generated serializer would stringify raw',
+    async (name) => {
+      const { console, calls } = client(() => new Response(null, { status: 204 }), {
+        CAMUNDA_SDK_VALIDATION: 'req:none,res:none',
+      });
+      const err = await console
+        .deleteExternalIdp({ clusterUuid: 'c1', name: name as unknown as string })
+        .catch((e) => e);
+      expect(err).toMatchObject({ name: 'ValidationSdkError', side: 'request' });
+      expect(err.message).toContain('dot segment');
+      expect(calls.filter(isApiCall)).toHaveLength(0);
+    }
+  );
   it.each(['a..b', 'a/b', 'a%2Fb', 'a b', '../x'])(
     'sends %j encoded inside its own segment',
     async (name) => {
@@ -226,6 +242,17 @@ describe('unsafe path parameters are rejected before URL construction', () => {
       );
     }
   );
+  it('sends an array of safe strings joined inside its own segment', async () => {
+    const { console, calls } = client(() => new Response(null, { status: 204 }), {
+      CAMUNDA_SDK_VALIDATION: 'req:none,res:none',
+    });
+    await console.deleteExternalIdp({
+      clusterUuid: 'c1',
+      name: ['a', 'b'] as unknown as string,
+    });
+    const [call] = calls.filter(isApiCall);
+    expect(new URL(call.url).pathname).toBe('/clusters/c1/external-idps/a,b');
+  });
 });
 
 describe('putExternalIdpCredential is retried only on 429', () => {
@@ -282,5 +309,34 @@ describe('putExternalIdpCredential is retried only on 429', () => {
       })
       .catch(() => {});
     expect(calls.filter(isApiCall).length).toBeGreaterThan(1);
+  });
+  it('applies to a low-level generated-client PUT to the credential URL, recognized by URL', async () => {
+    const { console, calls } = client(() => new Response(null, { status: 503 }), {
+      CAMUNDA_SDK_HTTP_RETRY_MAX_ATTEMPTS: 3,
+    });
+    await console.client
+      .put({
+        url: '/clusters/{clusterUuid}/external-idps/{name}/credential',
+        path: { clusterUuid: 'c1', name: 'n' },
+        body: { clientSecret: 's', type: 'client_secret' },
+        throwOnError: false,
+      })
+      .catch(() => {});
+    expect(calls.filter(isApiCall)).toHaveLength(1);
+  });
+  it('still retries 429 on the low-level credential PUT, rate-limited before processing', async () => {
+    const { console, calls } = client(
+      (_c, i) => new Response(null, { status: i === 0 ? 429 : 204 }),
+      { CAMUNDA_SDK_HTTP_RETRY_MAX_ATTEMPTS: 3 }
+    );
+    await console.client
+      .put({
+        url: '/clusters/{clusterUuid}/external-idps/{name}/credential',
+        path: { clusterUuid: 'c1', name: 'n' },
+        body: { clientSecret: 's', type: 'client_secret' },
+        throwOnError: false,
+      })
+      .catch(() => {});
+    expect(calls.filter(isApiCall)).toHaveLength(2);
   });
 });
