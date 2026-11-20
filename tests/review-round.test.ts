@@ -176,3 +176,111 @@ describe('non-2xx bodies shaped like SdkErrors are still wrapped', () => {
     }
   );
 });
+
+describe('unsafe path parameters are rejected before URL construction', () => {
+  // encodeURIComponent leaves '', '.' and '..' unchanged, and the WHATWG URL parser then
+  // resolves them: '..' would turn DELETE /clusters/{id}/external-idps/.. into a DELETE of
+  // the cluster itself. The facade rejects these for every operation and validation mode.
+  it.each(['..', '.', ''])(
+    'rejects name %j on deleteExternalIdp and sends nothing',
+    async (name) => {
+      const { console, calls } = client(() => new Response(null, { status: 204 }));
+      const err = await console.deleteExternalIdp({ clusterUuid: 'c1', name }).catch((e) => e);
+      expect(err).toMatchObject({ name: 'ValidationSdkError', side: 'request' });
+      expect(err.message).not.toContain(`"${name}"`);
+      expect(err.issues).toEqual([
+        expect.objectContaining({ code: 'invalid_string', path: ['name'] }),
+      ]);
+      expect(calls.filter(isApiCall)).toHaveLength(0);
+    }
+  );
+  it.each(['..', '.', ''])('rejects clusterUuid %j on getCluster', async (clusterUuid) => {
+    const { console, calls } = client(() => Response.json({}));
+    const err = await console.getCluster({ clusterUuid }).catch((e) => e);
+    expect(err).toMatchObject({ name: 'ValidationSdkError', side: 'request' });
+    expect(calls.filter(isApiCall)).toHaveLength(0);
+  });
+  it('rejects them even with request validation off', async () => {
+    const { console, calls } = client(() => new Response(null, { status: 204 }), {
+      CAMUNDA_SDK_VALIDATION: 'req:none,res:none',
+    });
+    const err = await console
+      .putExternalIdpCredential({
+        clusterUuid: 'c1',
+        name: '..',
+        clientSecret: 's',
+        type: 'client_secret',
+      })
+      .catch((e) => e);
+    expect(err).toMatchObject({ name: 'ValidationSdkError', side: 'request' });
+    expect(calls.filter(isApiCall)).toHaveLength(0);
+  });
+  it.each(['a..b', 'a/b', 'a%2Fb', 'a b', '../x'])(
+    'sends %j encoded inside its own segment',
+    async (name) => {
+      const { console, calls } = client(() => new Response(null, { status: 204 }));
+      await console.deleteExternalIdp({ clusterUuid: 'c1', name });
+      const [call] = calls.filter(isApiCall);
+      expect(new URL(call.url).pathname).toBe(
+        `/clusters/c1/external-idps/${encodeURIComponent(name)}`
+      );
+    }
+  );
+});
+
+describe('putExternalIdpCredential is retried only on 429', () => {
+  // Every accepted write restarts the cluster's pods, so although PUT is idempotent in the
+  // HTTP sense this operation is not: a transient retry after a lost response could start a
+  // second restart or surface the 409 of the first, still-running change.
+  const args = { clusterUuid: 'c1', name: 'n', clientSecret: 's', type: 'client_secret' as const };
+  it('does not retry a transient 503', async () => {
+    const { console, calls } = client(() => new Response(null, { status: 503 }), {
+      CAMUNDA_SDK_HTTP_RETRY_MAX_ATTEMPTS: 3,
+    });
+    const err = await console.putExternalIdpCredential(args).catch((e) => e);
+    expect(err).toMatchObject({ name: 'HttpSdkError', status: 503 });
+    expect(calls.filter(isApiCall)).toHaveLength(1);
+  });
+  it('does not retry a network error', async () => {
+    const fake = fakeFetch(() => new Response(null, { status: 204 }));
+    const failing = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new Request(input, init).url;
+      if (new URL(url).hostname === 'console.test') throw new TypeError('fetch failed');
+      return fake.fetch(input, init);
+    }) as typeof fetch;
+    const { console } = client(
+      () => new Response(null, { status: 204 }),
+      { CAMUNDA_SDK_HTTP_RETRY_MAX_ATTEMPTS: 3 },
+      failing
+    );
+    const err = await console.putExternalIdpCredential(args).catch((e) => e);
+    expect(err.name).toBe('NetworkSdkError');
+    expect(fake.calls.filter(isApiCall)).toHaveLength(0);
+  });
+  it('still retries 429, which was rate-limited before processing', async () => {
+    const { console, calls } = client(
+      (_c, i) => new Response(null, { status: i === 0 ? 429 : 204 }),
+      { CAMUNDA_SDK_HTTP_RETRY_MAX_ATTEMPTS: 3 }
+    );
+    await console.putExternalIdpCredential(args);
+    expect(calls.filter(isApiCall)).toHaveLength(2);
+  });
+  it('keeps transient retries for other PUTs such as putExternalIdp', async () => {
+    const { console, calls } = client(
+      (_c, i) => (i === 0 ? new Response(null, { status: 503 }) : Response.json({})),
+      { CAMUNDA_SDK_HTTP_RETRY_MAX_ATTEMPTS: 3 }
+    );
+    await console
+      .putExternalIdp({
+        clusterUuid: 'c1',
+        name: 'n',
+        clientId: 'x',
+        clientName: 'N',
+        enabled: true,
+        issuerUri: 'https://idp.example.com',
+        protocol: 'oidc',
+      })
+      .catch(() => {});
+    expect(calls.filter(isApiCall).length).toBeGreaterThan(1);
+  });
+});

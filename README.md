@@ -125,7 +125,7 @@ await consoleApi.createBackup(
 ## Behaviour
 
 - **Authentication.** OAuth client credentials. The token is cached in memory and refreshed a minute before it expires. On a 401 the client fetches a new token and retries once.
-- **Retries.** `429` is retried for every method, honouring `Retry-After`. `502`/`503`/`504` and network errors are retried only for idempotent methods (GET, PUT, DELETE), so a request such as `createCluster` is never sent twice. Backoff is exponential with full jitter, bounded by `CAMUNDA_SDK_HTTP_RETRY_BASE_DELAY_MS` and `CAMUNDA_SDK_HTTP_RETRY_MAX_DELAY_MS`.
+- **Retries.** `429` is retried for every method, honouring `Retry-After`. `502`/`503`/`504` and network errors are retried only for idempotent methods (GET, PUT, DELETE), so a request such as `createCluster` is never sent twice. `putExternalIdpCredential` is the one exception: it is a PUT but restarts the cluster's pods on every accepted write, so it is retried only on `429`, never on transient statuses or network errors. Backoff is exponential with full jitter, bounded by `CAMUNDA_SDK_HTTP_RETRY_BASE_DELAY_MS` and `CAMUNDA_SDK_HTTP_RETRY_MAX_DELAY_MS`.
 - **Logging.** `CAMUNDA_SDK_LOG_LEVEL` selects `silent | error | warn | info | debug | trace | silly`, or pass your own `logger`. The SDK logs metadata only — operation ids, statuses, attempt numbers — and **never** request payloads, response bodies or token responses, at any level including `silly`, because Console responses can contain connector secrets and the token endpoint returns access tokens.
 - **Errors.** All SDK-thrown operational errors are OCA's discriminated union (`SdkError`); narrow them with `isSdkError`. See below.
 

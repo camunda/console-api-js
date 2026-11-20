@@ -118,6 +118,16 @@ type Result = { data?: unknown; error?: unknown; response?: Response; request?: 
 
 type AnyRecord = Record<string, unknown>;
 
+/**
+ * Operations whose effect is not idempotent even though their HTTP method is: every accepted
+ * PutExternalIdpCredential write restarts the cluster's pods to read the new secret, so a
+ * transient retry after a lost response could start a second restart, or surface the 409 of
+ * the first, still-running change and report a succeeded rotation as failed. The transport
+ * retries these only on 429 (the request was rate-limited before it was processed), exactly
+ * as it treats POST and PATCH for transient statuses and network errors.
+ */
+const NON_IDEMPOTENT_OPERATIONS: ReadonlySet<string> = new Set(['PutExternalIdpCredential']);
+
 /** Sentinel thrown by the probe client that reads an operation's generated validators. */
 const PROBE = Symbol('validator-probe');
 
@@ -225,10 +235,30 @@ export function unknownFields(
 }
 
 /**
+ * A path parameter value that `encodeURIComponent` leaves unchanged can still rewrite the
+ * request URL: the WHATWG URL parser resolves `.` and `..` segments and collapses empty
+ * ones, so `name: '..'` would turn `DELETE /clusters/{id}/external-idps/..` into a DELETE of
+ * the cluster itself. Reject these before URL construction, whatever the transport does with
+ * them. Values with `/` or `%` are encoded by the generated client and stay inside their
+ * segment, so they are safe.
+ */
+function unsafePathParam(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  if (value === '' || value === '.' || value === '..') {
+    return 'is empty or a dot segment, which URL resolution would rewrite into a different resource';
+  }
+  return undefined;
+}
+
+/**
  * Split a facade argument object into the `{ path, body }` shape the generated client expects.
  * Path parameters are the fields named in `pathParams`; everything else is the request body.
  * A field listed in both is a spec-level defect: it throws rather than silently overwriting
  * one side (guarded for every operation by the clash test in tests/surface.test.ts).
+ *
+ * Throws a `ValidationSdkError` (side `request`) when a path parameter would not survive URL
+ * construction (see {@link unsafePathParam}) — for every operation, independently of the
+ * configured validation mode.
  */
 export function splitArgs(
   operationId: string,
@@ -239,6 +269,7 @@ export function splitArgs(
   const inPath = new Set(pathParams);
   const path: AnyRecord = {};
   const body: AnyRecord = {};
+  const unsafe: { code: string; path: (string | number)[]; message: string }[] = [];
   for (const [k, v] of Object.entries(input)) {
     if (inPath.has(k)) {
       if (k in body) {
@@ -246,10 +277,15 @@ export function splitArgs(
           `${operationId}: field "${k}" is both a path parameter and a body field; this is a defect in the generated client — please open an issue`
         );
       }
+      const problem = unsafePathParam(v);
+      if (problem) unsafe.push({ code: 'invalid_string', path: [k], message: problem });
       path[k] = v;
     } else {
       body[k] = v;
     }
+  }
+  if (unsafe.length > 0) {
+    throw validationError({ side: 'request', operationId, issues: unsafe });
   }
   const result: { path?: AnyRecord; body?: AnyRecord } = {};
   if (pathParams.length > 0) result.path = path;
@@ -405,7 +441,12 @@ export class ConsoleClient {
       }
     }
 
-    const ctx: TransportContext = { retryPolicy, operationId, attempts: 0 };
+    const ctx: TransportContext = {
+      retryPolicy,
+      operationId,
+      attempts: 0,
+      nonIdempotent: NON_IDEMPOTENT_OPERATIONS.has(operationId),
+    };
     let result: Result;
     try {
       result = await runWithContext(ctx, () =>

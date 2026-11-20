@@ -62,6 +62,14 @@ export interface TransportContext {
   operationId: string;
   /** Requests actually sent for this operation (excluding the 401 token-refresh resend). */
   attempts: number;
+  /**
+   * When true, transient statuses (502/503/504) and network errors are not retried even for a
+   * method that is idempotent in the HTTP sense — the operation has a non-idempotent effect
+   * (for example PutExternalIdpCredential restarts the cluster's pods on every accepted write),
+   * so repeating it after a lost response can repeat the effect or report a succeeded change as
+   * failed. 429 is still retried: the request was rate-limited before it was processed.
+   */
+  nonIdempotent?: boolean;
 }
 
 /**
@@ -109,7 +117,7 @@ export function createConsoleFetch(options: TransportOptions): OperationFetch {
     const retryPolicy = ctx?.retryPolicy ?? retry;
     const operationId = ctx?.operationId ?? 'unknown';
     const original = new Request(input, init);
-    const idempotent = IDEMPOTENT.has(original.method.toUpperCase());
+    const idempotent = IDEMPOTENT.has(original.method.toUpperCase()) && !ctx?.nonIdempotent;
     let refreshedAfter401 = false;
     let attempt = 0; // retries performed so far
     const maxAttempts = Math.max(1, retryPolicy.maxAttempts);
