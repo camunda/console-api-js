@@ -1,6 +1,6 @@
 # @camunda8/console-api
 
-TypeScript client for the [Camunda 8 SaaS Console (Administration) API](https://docs.camunda.io/docs/apis-tools/administration-api/administration-api-reference/): manage clusters, API clients, connector secrets, IP allowlists, backups, monitoring, members and the audit log.
+TypeScript client for the [Camunda 8 SaaS Console (Administration) API](https://docs.camunda.io/docs/apis-tools/administration-api/administration-api-reference/): manage clusters, API clients, connector secrets, IP allowlists, external identity providers, backups, monitoring, members and the audit log.
 
 This package replaces `Camunda8.getAdminApiClient()` from `@camunda8/sdk`. For the Orchestration Cluster API (processes, jobs, user tasks), use [`@camunda8/orchestration-cluster-api`](https://www.npmjs.com/package/@camunda8/orchestration-cluster-api) (OCA). The ergonomics of the two packages are aligned: the same argument style, config keys, error model, and validation, retry and log settings.
 
@@ -196,7 +196,7 @@ Methods take one object with path parameters and body fields merged. Most names 
 | `updateSecret(clusterUuid, name, value)`                 | `updateSecret({ clusterUuid, secretName: name, secretValue: value })` |
 | `createMonitoringClient(clusterUuid, username)`          | `createMonitoringClient({ clusterUuid, username })`                   |
 
-New in this package: `triggerFailover`, `updateClusterEncryption`, `getBackupSchedule`, `updateBackupSchedule`, `deleteBackupSchedule`, `restoreFromBackup`, `getRestoreStatus`.
+New in this package: `triggerFailover`, `updateClusterEncryption`, `getBackupSchedule`, `updateBackupSchedule`, `deleteBackupSchedule`, `restoreFromBackup`, `getRestoreStatus`, and the external identity provider operations (`getExternalIdps`, `getExternalIdp`, `putExternalIdp`, `updateExternalIdp`, `deleteExternalIdp`, `putExternalIdpCredential`).
 
 ## Migrating from a pre-release checkout of this package
 

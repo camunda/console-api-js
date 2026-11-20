@@ -83,6 +83,12 @@ export const OPERATION_METHODS = {
   CreateSecret: 'createSecret',
   UpdateSecret: 'updateSecret',
   DeleteSecret: 'deleteSecret',
+  ListExternalIdps: 'getExternalIdps',
+  GetExternalIdp: 'getExternalIdp',
+  PutExternalIdp: 'putExternalIdp',
+  PatchExternalIdp: 'updateExternalIdp',
+  DeleteExternalIdp: 'deleteExternalIdp',
+  PutExternalIdpCredential: 'putExternalIdpCredential',
   GetSecureConnectivityStatus: 'getSecureConnectivityStatus',
   ActivateSecureConnectivity: 'activateSecureConnectivity',
   DeactivateSecureConnectivity: 'deactivateSecureConnectivity',
@@ -604,6 +610,56 @@ export class ConsoleClient {
     options?: OperationOptions
   ): Promise<T.DeleteSecretResponse> {
     return this.call(api.deleteSecret, args, ['clusterUuid', 'secretName'], options);
+  }
+
+  // --- External identity providers ----------------------------------------------------------
+
+  getExternalIdps(
+    args: { clusterUuid: string },
+    options?: OperationOptions
+  ): Promise<T.ListExternalIdpsResponse> {
+    return this.call(api.listExternalIdps, args, ['clusterUuid'], options);
+  }
+
+  getExternalIdp(
+    args: { clusterUuid: string; name: string },
+    options?: OperationOptions
+  ): Promise<T.GetExternalIdpResponse> {
+    return this.call(api.getExternalIdp, args, ['clusterUuid', 'name'], options);
+  }
+
+  /**
+   * Creates or replaces the cluster's external identity provider (a cluster has at most one).
+   * Pass `credential` to store the client secret in the same call.
+   */
+  putExternalIdp(
+    args: { clusterUuid: string; name: string } & T.ExternalIdpPutBody,
+    options?: OperationOptions
+  ): Promise<T.PutExternalIdpResponse> {
+    return this.call(api.putExternalIdp, args, ['clusterUuid', 'name'], options);
+  }
+
+  /** Replaces only the given fields; an array replaces the whole array. */
+  updateExternalIdp(
+    args: { clusterUuid: string; name: string } & T.ExternalIdpPatchBody,
+    options?: OperationOptions
+  ): Promise<T.PatchExternalIdpResponse> {
+    return this.call(api.patchExternalIdp, args, ['clusterUuid', 'name'], options);
+  }
+
+  deleteExternalIdp(
+    args: { clusterUuid: string; name: string },
+    options?: OperationOptions
+  ): Promise<T.DeleteExternalIdpResponse> {
+    return this.call(api.deleteExternalIdp, args, ['clusterUuid', 'name'], options);
+  }
+
+  /** Stores the provider's client secret. The secret is never returned by the API. */
+  putExternalIdpCredential(
+    args: { clusterUuid: string; name: string } & T.ExternalIdpCredentialInput,
+    options?: OperationOptions
+  ): Promise<T.PutExternalIdpCredentialResponse> {
+    return this.call(api.putExternalIdpCredential, args, ['clusterUuid', 'name'], options);
   }
 
   // --- Secure connectivity --------------------------------------------------------------------
