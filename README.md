@@ -1,6 +1,6 @@
 # @camunda8/console-api
 
-TypeScript client for the [Camunda 8 SaaS Console (Administration) API](https://docs.camunda.io/docs/apis-tools/administration-api/administration-api-reference/): manage clusters, API clients, connector secrets, IP allowlists, backups, monitoring, members and the audit log.
+TypeScript client for the [Camunda 8 SaaS Console (Administration) API](https://docs.camunda.io/docs/apis-tools/administration-api/administration-api-reference/): manage clusters, API clients, connector secrets, IP allowlists, external identity providers, backups, monitoring, members and the audit log.
 
 This package replaces `Camunda8.getAdminApiClient()` from `@camunda8/sdk`. For the Orchestration Cluster API (processes, jobs, user tasks), use [`@camunda8/orchestration-cluster-api`](https://www.npmjs.com/package/@camunda8/orchestration-cluster-api) (OCA). The ergonomics of the two packages are aligned: the same argument style, config keys, error model, and validation, retry and log settings.
 
@@ -125,7 +125,8 @@ await consoleApi.createBackup(
 ## Behaviour
 
 - **Authentication.** OAuth client credentials. The token is cached in memory and refreshed a minute before it expires. On a 401 the client fetches a new token and retries once.
-- **Retries.** `429` is retried for every method, honouring `Retry-After`. `502`/`503`/`504` and network errors are retried only for idempotent methods (GET, PUT, DELETE), so a request such as `createCluster` is never sent twice. Backoff is exponential with full jitter, bounded by `CAMUNDA_SDK_HTTP_RETRY_BASE_DELAY_MS` and `CAMUNDA_SDK_HTTP_RETRY_MAX_DELAY_MS`.
+- **Retries.** `429` is retried for every method, honouring `Retry-After`. `502`/`503`/`504` and network errors are retried only for idempotent methods (GET, PUT, DELETE), so a request such as `createCluster` is never sent twice. `putExternalIdpCredential` is the one exception: it is a PUT but restarts the cluster's pods on every accepted write, so it is retried only on `429`, never on transient statuses or network errors — the transport recognizes the credential endpoint by URL, so the same holds for a low-level `consoleClient.client.put` to it. Backoff is exponential with full jitter, bounded by `CAMUNDA_SDK_HTTP_RETRY_BASE_DELAY_MS` and `CAMUNDA_SDK_HTTP_RETRY_MAX_DELAY_MS`.
+- **Path safety.** A path parameter that serializes to an empty or `.`/`..` segment is rejected with a `ValidationSdkError` before anything is sent: the WHATWG URL parser would resolve it into a different resource (`name: '..'` would turn `DELETE /clusters/{id}/external-idps/..` into a DELETE of the cluster itself). The check runs in the request validator of every facade operation, in every validation mode — including non-string values the generated serializer stringifies, such as arrays. (Raw `consoleClient.client.*` calls that build their own URL bypass the facade; see **Low-level access**.)
 - **Logging.** `CAMUNDA_SDK_LOG_LEVEL` selects `silent | error | warn | info | debug | trace | silly`, or pass your own `logger`. The SDK logs metadata only — operation ids, statuses, attempt numbers — and **never** request payloads, response bodies or token responses, at any level including `silly`, because Console responses can contain connector secrets and the token endpoint returns access tokens.
 - **Errors.** All SDK-thrown operational errors are OCA's discriminated union (`SdkError`); narrow them with `isSdkError`. See below.
 
@@ -196,7 +197,7 @@ Methods take one object with path parameters and body fields merged. Most names 
 | `updateSecret(clusterUuid, name, value)`                 | `updateSecret({ clusterUuid, secretName: name, secretValue: value })` |
 | `createMonitoringClient(clusterUuid, username)`          | `createMonitoringClient({ clusterUuid, username })`                   |
 
-New in this package: `triggerFailover`, `updateClusterEncryption`, `getBackupSchedule`, `updateBackupSchedule`, `deleteBackupSchedule`, `restoreFromBackup`, `getRestoreStatus`.
+New in this package: `triggerFailover`, `updateClusterEncryption`, `getBackupSchedule`, `updateBackupSchedule`, `deleteBackupSchedule`, `restoreFromBackup`, `getRestoreStatus`, and the external identity provider operations (`getExternalIdps`, `getExternalIdp`, `putExternalIdp`, `updateExternalIdp`, `deleteExternalIdp`, `putExternalIdpCredential`).
 
 ## Migrating from a pre-release checkout of this package
 
@@ -220,4 +221,4 @@ The ergonomics alignment with OCA (issue #13) landed before the first npm releas
 
 ## Low-level access
 
-The client is generated from the published OpenAPI spec with [`@hey-api/openapi-ts`](https://heyapi.dev). All request and response types are exported, and the zod schemas are available as `schemas`. `consoleClient.client` is the underlying generated client.
+The client is generated from the published OpenAPI spec with [`@hey-api/openapi-ts`](https://heyapi.dev). All request and response types are exported, and the zod schemas are available as `schemas`. `consoleClient.client` is the underlying generated client. Prefer the facade methods for anything that takes a path parameter: the path-safety check above runs in the facade, so a raw `consoleClient.client.delete({ url, path })` with a hand-built `path` is responsible for its own values. The credential endpoint's retry exception is recognized by URL in the transport, so it applies to low-level calls too.

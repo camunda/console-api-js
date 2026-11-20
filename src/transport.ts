@@ -42,6 +42,16 @@ interface TransportOptions {
 const IDEMPOTENT = new Set(['GET', 'HEAD', 'PUT', 'DELETE', 'OPTIONS']);
 const TRANSIENT = new Set([502, 503, 504]);
 
+/**
+ * The Console API endpoint whose writes are not idempotent even though PUT is: every accepted
+ * PutExternalIdpCredential write restarts the cluster's pods to read the new secret, so a
+ * transient retry after a lost response could start a second restart, or surface the 409 of
+ * the first, still-running change and report a succeeded rotation as failed. Recognized by
+ * URL so that calls through the low-level generated client (`consoleClient.client.put`),
+ * which carry no facade context, get the same treatment as facade calls.
+ */
+const NON_IDEMPOTENT_PATH = /\/clusters\/[^/]+\/external-idps\/[^/]+\/credential\/?$/;
+
 const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** Parse a Retry-After header (seconds or HTTP date) into ms, or undefined. */
@@ -62,6 +72,14 @@ export interface TransportContext {
   operationId: string;
   /** Requests actually sent for this operation (excluding the 401 token-refresh resend). */
   attempts: number;
+  /**
+   * When true, transient statuses (502/503/504) and network errors are not retried even for a
+   * method that is idempotent in the HTTP sense — the operation has a non-idempotent effect
+   * (for example PutExternalIdpCredential restarts the cluster's pods on every accepted write),
+   * so repeating it after a lost response can repeat the effect or report a succeeded change as
+   * failed. 429 is still retried: the request was rate-limited before it was processed.
+   */
+  nonIdempotent?: boolean;
 }
 
 /**
@@ -85,6 +103,8 @@ export function runWithContext<R>(ctx: TransportContext, fn: () => R): R {
  * - retries 429 for any method (the request was not processed), honouring Retry-After;
  * - retries 502/503/504 and network errors only for idempotent methods, so a POST that may
  *   have reached the server (for example createCluster) is never sent twice;
+ * - treats the external-IdP credential endpoint as non-idempotent (it restarts the cluster's
+ *   pods on every accepted write), recognized by URL so low-level calls are covered too;
  * - logs attempt metadata (never payloads, bodies or tokens) through the SDK logger.
  */
 export function createConsoleFetch(options: TransportOptions): OperationFetch {
@@ -109,7 +129,10 @@ export function createConsoleFetch(options: TransportOptions): OperationFetch {
     const retryPolicy = ctx?.retryPolicy ?? retry;
     const operationId = ctx?.operationId ?? 'unknown';
     const original = new Request(input, init);
-    const idempotent = IDEMPOTENT.has(original.method.toUpperCase());
+    const idempotent =
+      IDEMPOTENT.has(original.method.toUpperCase()) &&
+      !ctx?.nonIdempotent &&
+      !NON_IDEMPOTENT_PATH.test(new URL(original.url).pathname);
     let refreshedAfter401 = false;
     let attempt = 0; // retries performed so far
     const maxAttempts = Math.max(1, retryPolicy.maxAttempts);

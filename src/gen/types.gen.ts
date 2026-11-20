@@ -331,6 +331,97 @@ export type EncryptionKeyStatus = {
 
 export type EncryptionStatus = 'Ready' | 'ProviderError' | 'ExternalEncryptionKeyNotReady' | 'ExternalEncryptionKeyNotSupplied' | 'ExternalEncryptionKeyGrantNotReady' | 'CreationError' | 'EncryptedStorageNotReady';
 
+export type ExternalIdp = {
+    /**
+     * More https JWKS endpoints of the provider. At most 10.
+     */
+    additionalJwkSetUris?: Array<string>;
+    /**
+     * Accepted token audiences. At most 20.
+     */
+    audiences?: Array<string>;
+    clientId: string;
+    clientIdClaim?: string;
+    /**
+     * The display name of the provider on the login page.
+     */
+    clientName: string;
+    credential?: ExternalIdpCredential;
+    enabled: boolean;
+    /**
+     * The issuer URL. An absolute https URL that serves
+     * `/.well-known/openid-configuration`.
+     */
+    issuerUri: string;
+    name: string;
+    preferUsernameClaim?: boolean;
+    protocol: 'oidc';
+    scopes?: Array<string>;
+    usernameClaim?: string;
+};
+
+/**
+ * The stored credential. The secret itself is never returned.
+ */
+export type ExternalIdpCredential = {
+    type: 'client_secret';
+    /**
+     * When the secret was last written.
+     */
+    updatedAt: string;
+};
+
+export type ExternalIdpCredentialInput = {
+    clientSecret: string;
+    type: 'client_secret';
+};
+
+/**
+ * Each field given replaces the stored one. An array replaces the whole
+ * array.
+ */
+export type ExternalIdpPatchBody = {
+    additionalJwkSetUris?: Array<string>;
+    audiences?: Array<string>;
+    clientId?: string;
+    clientIdClaim?: string;
+    clientName?: string;
+    enabled?: boolean;
+    issuerUri?: string;
+    preferUsernameClaim?: boolean;
+    protocol?: 'oidc';
+    scopes?: Array<string>;
+    usernameClaim?: string;
+};
+
+export type ExternalIdpPutBody = {
+    /**
+     * More https JWKS endpoints of the provider. At most 10.
+     */
+    additionalJwkSetUris?: Array<string>;
+    /**
+     * Accepted token audiences. At most 20.
+     */
+    audiences?: Array<string>;
+    clientId: string;
+    clientIdClaim?: string;
+    /**
+     * The display name of the provider on the login page.
+     */
+    clientName: string;
+    credential?: ExternalIdpCredentialInput;
+    enabled: boolean;
+    /**
+     * The issuer URL. An absolute https URL that serves
+     * `/.well-known/openid-configuration`.
+     */
+    issuerUri: string;
+    preferUsernameClaim?: boolean;
+    protocol: 'oidc';
+    scopes?: Array<string>;
+    usernameClaim?: string;
+};
+
 export type FailoverResult = {
     newClusterId: string;
     results: {
@@ -1133,6 +1224,221 @@ export type UpdateClusterEncryptionResponses = {
 };
 
 export type UpdateClusterEncryptionResponse = UpdateClusterEncryptionResponses[keyof UpdateClusterEncryptionResponses];
+
+export type ListExternalIdpsData = {
+    body?: never;
+    path: {
+        clusterUuid: string;
+    };
+    query?: never;
+    url: '/clusters/{clusterUuid}/external-idps';
+};
+
+export type ListExternalIdpsErrors = {
+    /**
+     * The cluster is not yours, or the API client does not have the scope of the route
+     */
+    403: unknown;
+    /**
+     * Cluster not found
+     */
+    404: unknown;
+};
+
+export type ListExternalIdpsResponses = {
+    /**
+     * Ok
+     */
+    200: Array<ExternalIdp>;
+};
+
+export type ListExternalIdpsResponse = ListExternalIdpsResponses[keyof ListExternalIdpsResponses];
+
+export type DeleteExternalIdpData = {
+    body?: never;
+    path: {
+        clusterUuid: string;
+        name: string;
+    };
+    query?: never;
+    url: '/clusters/{clusterUuid}/external-idps/{name}';
+};
+
+export type DeleteExternalIdpErrors = {
+    /**
+     * The cluster is not yours, or the API client does not have the scope of the route
+     */
+    403: unknown;
+    /**
+     * Cluster or provider not found
+     */
+    404: unknown;
+    /**
+     * A restore is in progress, or another change of the provider is running
+     */
+    409: unknown;
+};
+
+export type DeleteExternalIdpResponses = {
+    /**
+     * No content
+     */
+    204: void;
+};
+
+export type DeleteExternalIdpResponse = DeleteExternalIdpResponses[keyof DeleteExternalIdpResponses];
+
+export type GetExternalIdpData = {
+    body?: never;
+    path: {
+        clusterUuid: string;
+        name: string;
+    };
+    query?: never;
+    url: '/clusters/{clusterUuid}/external-idps/{name}';
+};
+
+export type GetExternalIdpErrors = {
+    /**
+     * The cluster is not yours, or the API client does not have the scope of the route
+     */
+    403: unknown;
+    /**
+     * Cluster or provider not found
+     */
+    404: unknown;
+};
+
+export type GetExternalIdpResponses = {
+    /**
+     * Ok
+     */
+    200: ExternalIdp;
+};
+
+export type GetExternalIdpResponse = GetExternalIdpResponses[keyof GetExternalIdpResponses];
+
+export type PatchExternalIdpData = {
+    body: ExternalIdpPatchBody;
+    path: {
+        clusterUuid: string;
+        name: string;
+    };
+    query?: never;
+    url: '/clusters/{clusterUuid}/external-idps/{name}';
+};
+
+export type PatchExternalIdpErrors = {
+    /**
+     * Invalid body, the issuer discovery check failed, the cluster generation is too old, App Integrations is on, or the provider would be enabled with no secret
+     */
+    400: unknown;
+    /**
+     * The cluster is not yours, or the API client does not have the scope of the route
+     */
+    403: unknown;
+    /**
+     * Cluster or provider not found
+     */
+    404: unknown;
+    /**
+     * A restore is in progress, or another change of the provider is running
+     */
+    409: unknown;
+};
+
+export type PatchExternalIdpResponses = {
+    /**
+     * Ok
+     */
+    200: ExternalIdp;
+};
+
+export type PatchExternalIdpResponse = PatchExternalIdpResponses[keyof PatchExternalIdpResponses];
+
+export type PutExternalIdpData = {
+    body: ExternalIdpPutBody;
+    path: {
+        clusterUuid: string;
+        name: string;
+    };
+    query?: never;
+    url: '/clusters/{clusterUuid}/external-idps/{name}';
+};
+
+export type PutExternalIdpErrors = {
+    /**
+     * Invalid body or name, the issuer discovery check failed, the cluster generation is too old, App Integrations is on, or the provider would be enabled with no secret
+     */
+    400: unknown;
+    /**
+     * The cluster is not yours, or the API client does not have the scope of the route
+     */
+    403: unknown;
+    /**
+     * Cluster not found
+     */
+    404: unknown;
+    /**
+     * The cluster has a provider with another name, a restore is in progress, or another change of the provider is running
+     */
+    409: unknown;
+    /**
+     * The secret store of the cluster is not ready
+     */
+    412: unknown;
+};
+
+export type PutExternalIdpResponses = {
+    /**
+     * Ok
+     */
+    200: ExternalIdp;
+};
+
+export type PutExternalIdpResponse = PutExternalIdpResponses[keyof PutExternalIdpResponses];
+
+export type PutExternalIdpCredentialData = {
+    body: ExternalIdpCredentialInput;
+    path: {
+        clusterUuid: string;
+        name: string;
+    };
+    query?: never;
+    url: '/clusters/{clusterUuid}/external-idps/{name}/credential';
+};
+
+export type PutExternalIdpCredentialErrors = {
+    /**
+     * Invalid credential
+     */
+    400: unknown;
+    /**
+     * The cluster is not yours, or the API client does not have the scope of the route
+     */
+    403: unknown;
+    /**
+     * Cluster or provider not found
+     */
+    404: unknown;
+    /**
+     * A restore is in progress, or another change of the provider is running
+     */
+    409: unknown;
+    /**
+     * The secret store of the cluster is not ready
+     */
+    412: unknown;
+};
+
+export type PutExternalIdpCredentialResponses = {
+    /**
+     * No content
+     */
+    204: void;
+};
+
+export type PutExternalIdpCredentialResponse = PutExternalIdpCredentialResponses[keyof PutExternalIdpCredentialResponses];
 
 export type TriggerFailoverData = {
     body: TriggerFailoverBody;

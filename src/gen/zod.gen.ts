@@ -320,6 +320,90 @@ export const zCluster = z.object({
     description: 'Describing a Camunda cluster running in your organization. For reference, use the UUID.'
 });
 
+/**
+ * The stored credential. The secret itself is never returned.
+ */
+export const zExternalIdpCredential = z.object({
+    type: z.enum(['client_secret']),
+    updatedAt: z.string().register(z.globalRegistry, {
+        description: 'When the secret was last written.'
+    })
+}).register(z.globalRegistry, {
+    description: 'The stored credential. The secret itself is never returned.'
+});
+
+export const zExternalIdp = z.object({
+    additionalJwkSetUris: z.array(z.string()).register(z.globalRegistry, {
+        description: 'More https JWKS endpoints of the provider. At most 10.'
+    }).optional(),
+    audiences: z.array(z.string()).register(z.globalRegistry, {
+        description: 'Accepted token audiences. At most 20.'
+    }).optional(),
+    clientId: z.string(),
+    clientIdClaim: z.string().optional(),
+    clientName: z.string().register(z.globalRegistry, {
+        description: 'The display name of the provider on the login page.'
+    }),
+    credential: zExternalIdpCredential.optional(),
+    enabled: z.boolean(),
+    issuerUri: z.string().register(z.globalRegistry, {
+        description: 'The issuer URL. An absolute https URL that serves\n`/.well-known/openid-configuration`.'
+    }),
+    name: z.string(),
+    preferUsernameClaim: z.boolean().optional(),
+    protocol: z.enum(['oidc']),
+    scopes: z.array(z.string()).optional(),
+    usernameClaim: z.string().optional()
+});
+
+export const zExternalIdpCredentialInput = z.object({
+    clientSecret: z.string(),
+    type: z.enum(['client_secret'])
+});
+
+/**
+ * Each field given replaces the stored one. An array replaces the whole
+ * array.
+ */
+export const zExternalIdpPatchBody = z.object({
+    additionalJwkSetUris: z.array(z.string()).optional(),
+    audiences: z.array(z.string()).optional(),
+    clientId: z.string().optional(),
+    clientIdClaim: z.string().optional(),
+    clientName: z.string().optional(),
+    enabled: z.boolean().optional(),
+    issuerUri: z.string().optional(),
+    preferUsernameClaim: z.boolean().optional(),
+    protocol: z.enum(['oidc']).optional(),
+    scopes: z.array(z.string()).optional(),
+    usernameClaim: z.string().optional()
+}).register(z.globalRegistry, {
+    description: 'Each field given replaces the stored one. An array replaces the whole\narray.'
+});
+
+export const zExternalIdpPutBody = z.object({
+    additionalJwkSetUris: z.array(z.string()).register(z.globalRegistry, {
+        description: 'More https JWKS endpoints of the provider. At most 10.'
+    }).optional(),
+    audiences: z.array(z.string()).register(z.globalRegistry, {
+        description: 'Accepted token audiences. At most 20.'
+    }).optional(),
+    clientId: z.string(),
+    clientIdClaim: z.string().optional(),
+    clientName: z.string().register(z.globalRegistry, {
+        description: 'The display name of the provider on the login page.'
+    }),
+    credential: zExternalIdpCredentialInput.optional(),
+    enabled: z.boolean(),
+    issuerUri: z.string().register(z.globalRegistry, {
+        description: 'The issuer URL. An absolute https URL that serves\n`/.well-known/openid-configuration`.'
+    }),
+    preferUsernameClaim: z.boolean().optional(),
+    protocol: z.enum(['oidc']),
+    scopes: z.array(z.string()).optional(),
+    usernameClaim: z.string().optional()
+});
+
 export const zFailoverResult = z.object({
     newClusterId: z.string(),
     results: z.object({
@@ -781,6 +865,77 @@ export const zUpdateClusterEncryptionPath = z.object({
  * Ok
  */
 export const zUpdateClusterEncryptionResponse = zCluster;
+
+export const zListExternalIdpsPath = z.object({
+    clusterUuid: z.string()
+});
+
+/**
+ * Ok
+ */
+export const zListExternalIdpsResponse = z.array(zExternalIdp).register(z.globalRegistry, {
+    description: 'Ok'
+});
+
+export const zDeleteExternalIdpPath = z.object({
+    clusterUuid: z.string(),
+    name: z.string()
+});
+
+/**
+ * No content
+ */
+export const zDeleteExternalIdpResponse = z.void().register(z.globalRegistry, {
+    description: 'No content'
+});
+
+export const zGetExternalIdpPath = z.object({
+    clusterUuid: z.string(),
+    name: z.string()
+});
+
+/**
+ * Ok
+ */
+export const zGetExternalIdpResponse = zExternalIdp;
+
+export const zPatchExternalIdpBody = zExternalIdpPatchBody;
+
+export const zPatchExternalIdpPath = z.object({
+    clusterUuid: z.string(),
+    name: z.string()
+});
+
+/**
+ * Ok
+ */
+export const zPatchExternalIdpResponse = zExternalIdp;
+
+export const zPutExternalIdpBody = zExternalIdpPutBody;
+
+export const zPutExternalIdpPath = z.object({
+    clusterUuid: z.string(),
+    name: z.string()
+});
+
+/**
+ * Ok
+ */
+export const zPutExternalIdpResponse = zExternalIdp;
+
+export const zPutExternalIdpCredentialBody = zExternalIdpCredentialInput;
+
+export const zPutExternalIdpCredentialPath = z.object({
+    clusterUuid: z.string(),
+    name: z.string()
+});
+
+/**
+ * No content
+ */
+export const zPutExternalIdpCredentialResponse = z.void().register(z.globalRegistry, {
+    description: 'No content'
+});
 
 export const zTriggerFailoverBody2 = zTriggerFailoverBody;
 

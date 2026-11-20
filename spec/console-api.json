@@ -805,6 +805,239 @@
         ],
         "type": "string"
       },
+      "ExternalIdp": {
+        "additionalProperties": false,
+        "properties": {
+          "additionalJwkSetUris": {
+            "description": "More https JWKS endpoints of the provider. At most 10.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "audiences": {
+            "description": "Accepted token audiences. At most 20.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "clientId": {
+            "type": "string"
+          },
+          "clientIdClaim": {
+            "type": "string"
+          },
+          "clientName": {
+            "description": "The display name of the provider on the login page.",
+            "type": "string"
+          },
+          "credential": {
+            "$ref": "#/components/schemas/ExternalIdpCredential",
+            "description": "Absent when the stored provider has no secret date."
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "issuerUri": {
+            "description": "The issuer URL. An absolute https URL that serves\n`/.well-known/openid-configuration`.",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "preferUsernameClaim": {
+            "type": "boolean"
+          },
+          "protocol": {
+            "enum": [
+              "oidc"
+            ],
+            "nullable": false,
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "usernameClaim": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "clientName",
+          "issuerUri",
+          "clientId",
+          "name",
+          "protocol",
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "ExternalIdpCredential": {
+        "additionalProperties": false,
+        "description": "The stored credential. The secret itself is never returned.",
+        "properties": {
+          "type": {
+            "enum": [
+              "client_secret"
+            ],
+            "nullable": false,
+            "type": "string"
+          },
+          "updatedAt": {
+            "description": "When the secret was last written.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "ExternalIdpCredentialInput": {
+        "additionalProperties": false,
+        "properties": {
+          "clientSecret": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "client_secret"
+            ],
+            "nullable": false,
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "clientSecret"
+        ],
+        "type": "object"
+      },
+      "ExternalIdpPatchBody": {
+        "additionalProperties": false,
+        "description": "Each field given replaces the stored one. An array replaces the whole\narray.",
+        "properties": {
+          "additionalJwkSetUris": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "audiences": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "clientId": {
+            "type": "string"
+          },
+          "clientIdClaim": {
+            "type": "string"
+          },
+          "clientName": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "issuerUri": {
+            "type": "string"
+          },
+          "preferUsernameClaim": {
+            "type": "boolean"
+          },
+          "protocol": {
+            "enum": [
+              "oidc"
+            ],
+            "nullable": false,
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "usernameClaim": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ExternalIdpPutBody": {
+        "additionalProperties": false,
+        "properties": {
+          "additionalJwkSetUris": {
+            "description": "More https JWKS endpoints of the provider. At most 10.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "audiences": {
+            "description": "Accepted token audiences. At most 20.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "clientId": {
+            "type": "string"
+          },
+          "clientIdClaim": {
+            "type": "string"
+          },
+          "clientName": {
+            "description": "The display name of the provider on the login page.",
+            "type": "string"
+          },
+          "credential": {
+            "$ref": "#/components/schemas/ExternalIdpCredentialInput",
+            "description": "Written before the provider is saved. Without it, the stored secret\nstays."
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "issuerUri": {
+            "description": "The issuer URL. An absolute https URL that serves\n`/.well-known/openid-configuration`.",
+            "type": "string"
+          },
+          "preferUsernameClaim": {
+            "type": "boolean"
+          },
+          "protocol": {
+            "enum": [
+              "oidc"
+            ],
+            "nullable": false,
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "usernameClaim": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "clientName",
+          "issuerUri",
+          "clientId",
+          "protocol",
+          "enabled"
+        ],
+        "type": "object"
+      },
       "FailoverResult": {
         "additionalProperties": false,
         "properties": {
@@ -1956,7 +2189,7 @@
         ]
       },
       "put": {
-        "description": "Creates or replaces the backup schedule of your Camunda cluster, so backups\nare taken automatically instead of on demand. A cluster has at most one\nschedule: an existing one is replaced rather than added to. Scheduled\nbackups are retained separately from manual ones — once the retention limit\nis reached, the oldest scheduled backup is removed.",
+        "description": "Creates or replaces the backup schedule of your Camunda cluster, so backups\nare taken automatically instead of on demand. The existing schedule is\nreplaced rather than a second one added. Scheduled backups are retained\nseparately from manual ones — once the retention limit is reached, the\noldest scheduled backup is removed.",
         "operationId": "UpdateSchedule",
         "parameters": [
           {
@@ -2368,6 +2601,320 @@
           },
           "409": {
             "description": "Cluster is not configured for external encryption"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/clusters/{clusterUuid}/external-idps": {
+      "get": {
+        "description": "Lists the external identity providers of a cluster. A cluster has at\nmost one.",
+        "operationId": "ListExternalIdps",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "clusterUuid",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ExternalIdp"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Ok"
+          },
+          "403": {
+            "description": "The cluster is not yours, or the API client does not have the scope of the route"
+          },
+          "404": {
+            "description": "Cluster not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/clusters/{clusterUuid}/external-idps/{name}": {
+      "delete": {
+        "description": "Deletes an external identity provider: its settings, its entry on the\ncluster and its client secret.",
+        "operationId": "DeleteExternalIdp",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "clusterUuid",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "403": {
+            "description": "The cluster is not yours, or the API client does not have the scope of the route"
+          },
+          "404": {
+            "description": "Cluster or provider not found"
+          },
+          "409": {
+            "description": "A restore is in progress, or another change of the provider is running"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "get": {
+        "description": "Gets an external identity provider. The client secret is never returned.",
+        "operationId": "GetExternalIdp",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "clusterUuid",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalIdp"
+                }
+              }
+            },
+            "description": "Ok"
+          },
+          "403": {
+            "description": "The cluster is not yours, or the API client does not have the scope of the route"
+          },
+          "404": {
+            "description": "Cluster or provider not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "patch": {
+        "description": "Changes fields of an external identity provider. A field that is not given\nkeeps its value. An array replaces the whole array. A change to `enabled`\nalone does not run the issuer discovery check. To enable the provider, a\nsecret must be stored.",
+        "operationId": "PatchExternalIdp",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "clusterUuid",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExternalIdpPatchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalIdp"
+                }
+              }
+            },
+            "description": "Ok"
+          },
+          "400": {
+            "description": "Invalid body, the issuer discovery check failed, the cluster generation is too old, App Integrations is on, or the provider would be enabled with no secret"
+          },
+          "403": {
+            "description": "The cluster is not yours, or the API client does not have the scope of the route"
+          },
+          "404": {
+            "description": "Cluster or provider not found"
+          },
+          "409": {
+            "description": "A restore is in progress, or another change of the provider is running"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "description": "Creates or replaces the external identity provider of a cluster. A cluster\nhas at most one provider. When `credential` is given, the secret is written\nfirst and the provider is saved after. To enable the provider, a secret\nmust be stored, or `credential` must be given.",
+        "operationId": "PutExternalIdp",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "clusterUuid",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExternalIdpPutBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalIdp"
+                }
+              }
+            },
+            "description": "Ok"
+          },
+          "400": {
+            "description": "Invalid body or name, the issuer discovery check failed, the cluster generation is too old, App Integrations is on, or the provider would be enabled with no secret"
+          },
+          "403": {
+            "description": "The cluster is not yours, or the API client does not have the scope of the route"
+          },
+          "404": {
+            "description": "Cluster not found"
+          },
+          "409": {
+            "description": "The cluster has a provider with another name, a restore is in progress, or another change of the provider is running"
+          },
+          "412": {
+            "description": "The secret store of the cluster is not ready"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/clusters/{clusterUuid}/external-idps/{name}/credential": {
+      "put": {
+        "description": "Replaces the client secret of an external identity provider. The cluster\nrestarts its pods to read the new secret.",
+        "operationId": "PutExternalIdpCredential",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "clusterUuid",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExternalIdpCredentialInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "400": {
+            "description": "Invalid credential"
+          },
+          "403": {
+            "description": "The cluster is not yours, or the API client does not have the scope of the route"
+          },
+          "404": {
+            "description": "Cluster or provider not found"
+          },
+          "409": {
+            "description": "A restore is in progress, or another change of the provider is running"
+          },
+          "412": {
+            "description": "The secret store of the cluster is not ready"
           }
         },
         "security": [

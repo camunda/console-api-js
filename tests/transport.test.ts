@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { TokenProvider } from '../src/auth';
-import { createConsoleFetch, parseRetryAfter, resolveRetryPolicy } from '../src/transport';
+import {
+  createConsoleFetch,
+  parseRetryAfter,
+  resolveRetryPolicy,
+  runWithContext,
+} from '../src/transport';
 import { fakeFetch } from './helpers';
 
 const OAUTH = 'https://login.cloud.camunda.io/oauth/token';
@@ -110,6 +115,66 @@ describe('transport', () => {
     const t = setup((_c, i) => new Response(null, { status: i === 0 ? 429 : 200 }));
     await t.send('https://console.test/x', { method: 'POST', body: '{"a":1}' });
     expect(api(t.calls).map((c) => c.body)).toEqual(['{"a":1}', '{"a":1}']);
+  });
+
+  it('a nonIdempotent context stops 5xx and network retries for a PUT but keeps 429', async () => {
+    const ctx = { retryPolicy: POLICY, operationId: 'Test', attempts: 0, nonIdempotent: true };
+    // 503: returned as-is, no retry.
+    const transient = setup(() => new Response(null, { status: 503 }));
+    const res = await runWithContext(ctx, () =>
+      transient.send('https://console.test/x', { method: 'PUT', body: '{}' })
+    );
+    expect(res.status).toBe(503);
+    expect(api(transient.calls)).toHaveLength(1);
+    // Network error: wrapped without a retry.
+    const failing = setup(() => {
+      throw new TypeError('fetch failed');
+    });
+    await expect(
+      runWithContext(ctx, () =>
+        failing.send('https://console.test/x', { method: 'PUT', body: '{}' })
+      )
+    ).rejects.toMatchObject({ name: 'NetworkSdkError' });
+    expect(api(failing.calls)).toHaveLength(1);
+    // 429: still retried — the request was rate-limited before it was processed.
+    const limited = setup((_c, i) => new Response(null, { status: i === 0 ? 429 : 204 }));
+    const ok = await runWithContext(ctx, () =>
+      limited.send('https://console.test/x', { method: 'PUT', body: '{}' })
+    );
+    expect(ok.status).toBe(204);
+    expect(api(limited.calls)).toHaveLength(2);
+  });
+
+  it('treats a PUT to the external-IdP credential URL as non-idempotent without any context', async () => {
+    const url = 'https://console.test/clusters/c1/external-idps/n/credential';
+    // 503: returned as-is, no retry.
+    const transient = setup(() => new Response(null, { status: 503 }));
+    const res = await transient.send(url, { method: 'PUT', body: '{}' });
+    expect(res.status).toBe(503);
+    expect(api(transient.calls)).toHaveLength(1);
+    // Network error: wrapped without a retry.
+    const failing = setup(() => {
+      throw new TypeError('fetch failed');
+    });
+    await expect(failing.send(url, { method: 'PUT', body: '{}' })).rejects.toMatchObject({
+      name: 'NetworkSdkError',
+    });
+    expect(api(failing.calls)).toHaveLength(1);
+    // 429: still retried — the request was rate-limited before it was processed.
+    const limited = setup((_c, i) => new Response(null, { status: i === 0 ? 429 : 204 }));
+    const ok = await limited.send(url, { method: 'PUT', body: '{}' });
+    expect(ok.status).toBe(204);
+    expect(api(limited.calls)).toHaveLength(2);
+  });
+
+  it('keeps transient retries for a PUT to the external-IdP resource itself', async () => {
+    const t = setup((_c, i) => new Response(null, { status: i === 0 ? 503 : 200 }));
+    const res = await t.send('https://console.test/clusters/c1/external-idps/n', {
+      method: 'PUT',
+      body: '{}',
+    });
+    expect(res.status).toBe(200);
+    expect(api(t.calls)).toHaveLength(2);
   });
 
   it('backs off with full jitter bounded by base * 2^attempt and the cap', async () => {

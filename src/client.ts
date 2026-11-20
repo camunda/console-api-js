@@ -83,6 +83,12 @@ export const OPERATION_METHODS = {
   CreateSecret: 'createSecret',
   UpdateSecret: 'updateSecret',
   DeleteSecret: 'deleteSecret',
+  ListExternalIdps: 'getExternalIdps',
+  GetExternalIdp: 'getExternalIdp',
+  PutExternalIdp: 'putExternalIdp',
+  PatchExternalIdp: 'updateExternalIdp',
+  DeleteExternalIdp: 'deleteExternalIdp',
+  PutExternalIdpCredential: 'putExternalIdpCredential',
   GetSecureConnectivityStatus: 'getSecureConnectivityStatus',
   ActivateSecureConnectivity: 'activateSecureConnectivity',
   DeactivateSecureConnectivity: 'deactivateSecureConnectivity',
@@ -111,6 +117,14 @@ export const OPERATION_METHODS = {
 type Result = { data?: unknown; error?: unknown; response?: Response; request?: Request };
 
 type AnyRecord = Record<string, unknown>;
+
+/**
+ * Operations whose effect is not idempotent even though their HTTP method is. The transport
+ * additionally recognizes the credential endpoint by URL (see NON_IDEMPOTENT_PATH in
+ * transport.ts), so calls through the low-level generated client — which carry no facade
+ * context — get the same retry treatment.
+ */
+const NON_IDEMPOTENT_OPERATIONS: ReadonlySet<string> = new Set(['PutExternalIdpCredential']);
 
 /** Sentinel thrown by the probe client that reads an operation's generated validators. */
 const PROBE = Symbol('validator-probe');
@@ -219,10 +233,64 @@ export function unknownFields(
 }
 
 /**
+ * A path parameter value that serializes to an empty or `.`/`..` segment would not survive
+ * URL construction: the WHATWG URL parser collapses empty segments and resolves dot ones, so
+ * `name: '..'` turns `DELETE /clusters/{id}/external-idps/..` into a DELETE of the cluster
+ * itself. The generated serializer stringifies scalars and arrays (`['..']` becomes `..`, `[]`
+ * becomes ``), and expands objects into `key,value` pairs that can carry `/` and `?` unencoded,
+ * so objects and empty arrays are always rejected. Values containing `/` or `%` are
+ * percent-encoded into their segment (`%2e` is sent as `%252e`), so they are safe and are not
+ * decoded here.
+ */
+function unsafePathSegment(value: unknown): boolean {
+  if (value === undefined || value === null) return false;
+  if (typeof value === 'object' && !Array.isArray(value)) return true;
+  if (Array.isArray(value) && value.length === 0) return true;
+  const values = Array.isArray(value) ? value : [value];
+  return values.some((v) => {
+    if (v !== null && typeof v === 'object') return true;
+    const s = typeof v === 'string' ? v : String(v);
+    return s === '' || s === '.' || s === '..';
+  });
+}
+
+/**
+ * Reject any path parameter that would not survive URL construction (see
+ * {@link unsafePathSegment}), before the generated client builds the URL. Runs in the
+ * request-validator wrapper, so it applies to every facade operation in every validation
+ * mode — including `none`, which only disables the schema check, never this safety check.
+ * The error is a ValidationSdkError (side `request`) and never carries the value.
+ */
+function assertSafePathParams(operationId: string, path: unknown): void {
+  if (!path || typeof path !== 'object') return;
+  for (const [key, value] of Object.entries(path as AnyRecord)) {
+    if (unsafePathSegment(value)) {
+      throw validationError({
+        side: 'request',
+        operationId,
+        issues: [
+          {
+            code: 'invalid_string',
+            path: ['path', key],
+            message:
+              'is empty, a dot segment, or an object, which URL resolution would rewrite into a different resource',
+          },
+        ],
+      });
+    }
+  }
+}
+
+/**
  * Split a facade argument object into the `{ path, body }` shape the generated client expects.
  * Path parameters are the fields named in `pathParams`; everything else is the request body.
  * A field listed in both is a spec-level defect: it throws rather than silently overwriting
  * one side (guarded for every operation by the clash test in tests/surface.test.ts).
+ *
+ * Path parameter safety (empty or dot segments, which URL resolution would rewrite into a
+ * different resource) is enforced in the request-validator wrapper, before the generated
+ * client builds the URL — for every operation and validation mode; see
+ * {@link assertSafePathParams}.
  */
 export function splitArgs(
   operationId: string,
@@ -328,10 +396,28 @@ export class ConsoleClient {
       mode: ValidationMode,
       validator: unknown
     ): unknown => {
-      if (mode === 'none') return undefined;
-      if (typeof validator !== 'function' || mode === 'strict') return validator;
+      if (mode === 'none') {
+        // Validation mode disables only the schema check, never path safety: a dot-segment
+        // path parameter would be rewritten by URL resolution into a different resource.
+        if (side !== 'request') return undefined;
+        return async (data: unknown) => {
+          assertSafePathParams(operationId, (data as AnyRecord)?.path);
+        };
+      }
+      if (typeof validator !== 'function' || mode === 'strict') {
+        if (side !== 'request') return validator;
+        const strict0 =
+          typeof validator === 'function'
+            ? (validator as (data: unknown) => Promise<unknown>)
+            : undefined;
+        return async (data: unknown) => {
+          assertSafePathParams(operationId, (data as AnyRecord)?.path);
+          return strict0 ? strict0(data) : undefined;
+        };
+      }
       const strict = validator as (data: unknown) => Promise<unknown>;
       return async (data: unknown) => {
+        if (side === 'request') assertSafePathParams(operationId, (data as AnyRecord)?.path);
         try {
           await strict(data);
         } catch (e) {
@@ -372,9 +458,10 @@ export class ConsoleClient {
     // Read the operation's generated validators off a probe client (the operation spreads its
     // own defaults first, so a client-level validator would win over them), wrap them for the
     // configured modes, and pass the wrapped ones back in the real call.
-    const needsWrap = reqMode !== 'strict' || resMode !== 'strict';
+    // Always wrap: the request wrapper carries path-parameter safety in every mode,
+    // including strict/strict, so it must never be skipped.
     let validatorOverrides: AnyRecord = {};
-    if (needsWrap) {
+    {
       const probeHandler = (opts: AnyRecord) => {
         validatorOverrides = {
           requestValidator: wrapValidator('request', reqMode, opts.requestValidator),
@@ -399,7 +486,12 @@ export class ConsoleClient {
       }
     }
 
-    const ctx: TransportContext = { retryPolicy, operationId, attempts: 0 };
+    const ctx: TransportContext = {
+      retryPolicy,
+      operationId,
+      attempts: 0,
+      nonIdempotent: NON_IDEMPOTENT_OPERATIONS.has(operationId),
+    };
     let result: Result;
     try {
       result = await runWithContext(ctx, () =>
@@ -604,6 +696,56 @@ export class ConsoleClient {
     options?: OperationOptions
   ): Promise<T.DeleteSecretResponse> {
     return this.call(api.deleteSecret, args, ['clusterUuid', 'secretName'], options);
+  }
+
+  // --- External identity providers ----------------------------------------------------------
+
+  getExternalIdps(
+    args: { clusterUuid: string },
+    options?: OperationOptions
+  ): Promise<T.ListExternalIdpsResponse> {
+    return this.call(api.listExternalIdps, args, ['clusterUuid'], options);
+  }
+
+  getExternalIdp(
+    args: { clusterUuid: string; name: string },
+    options?: OperationOptions
+  ): Promise<T.GetExternalIdpResponse> {
+    return this.call(api.getExternalIdp, args, ['clusterUuid', 'name'], options);
+  }
+
+  /**
+   * Creates or replaces the cluster's external identity provider (a cluster has at most one).
+   * Pass `credential` to store the client secret in the same call.
+   */
+  putExternalIdp(
+    args: { clusterUuid: string; name: string } & T.ExternalIdpPutBody,
+    options?: OperationOptions
+  ): Promise<T.PutExternalIdpResponse> {
+    return this.call(api.putExternalIdp, args, ['clusterUuid', 'name'], options);
+  }
+
+  /** Replaces only the given fields; an array replaces the whole array. */
+  updateExternalIdp(
+    args: { clusterUuid: string; name: string } & T.ExternalIdpPatchBody,
+    options?: OperationOptions
+  ): Promise<T.PatchExternalIdpResponse> {
+    return this.call(api.patchExternalIdp, args, ['clusterUuid', 'name'], options);
+  }
+
+  deleteExternalIdp(
+    args: { clusterUuid: string; name: string },
+    options?: OperationOptions
+  ): Promise<T.DeleteExternalIdpResponse> {
+    return this.call(api.deleteExternalIdp, args, ['clusterUuid', 'name'], options);
+  }
+
+  /** Stores the provider's client secret. The secret is never returned by the API. */
+  putExternalIdpCredential(
+    args: { clusterUuid: string; name: string } & T.ExternalIdpCredentialInput,
+    options?: OperationOptions
+  ): Promise<T.PutExternalIdpCredentialResponse> {
+    return this.call(api.putExternalIdpCredential, args, ['clusterUuid', 'name'], options);
   }
 
   // --- Secure connectivity --------------------------------------------------------------------

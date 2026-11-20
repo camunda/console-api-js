@@ -4,8 +4,8 @@ import * as z from 'zod';
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ActivateMonitoringData, ActivateMonitoringErrors, ActivateMonitoringResponses, ActivateSecureConnectivityData, ActivateSecureConnectivityErrors, ActivateSecureConnectivityResponses, CreateBackupData, CreateBackupErrors, CreateBackupResponses, CreateClientData, CreateClientErrors, CreateClientResponses, CreateClusterData, CreateClusterErrors, CreateClusterResponses, CreateMonitoringClientData, CreateMonitoringClientErrors, CreateMonitoringClientResponses, CreateSecretData, CreateSecretErrors, CreateSecretResponses, DeactivateMonitoringData, DeactivateMonitoringErrors, DeactivateMonitoringResponses, DeactivateSecureConnectivityData, DeactivateSecureConnectivityErrors, DeactivateSecureConnectivityResponses, DeleteBackupData, DeleteBackupErrors, DeleteBackupResponses, DeleteClientData, DeleteClientErrors, DeleteClientResponses, DeleteClusterData, DeleteClusterErrors, DeleteClusterResponses, DeleteMemberData, DeleteMemberErrors, DeleteMemberResponses, DeleteMonitoringClientData, DeleteMonitoringClientErrors, DeleteMonitoringClientResponses, DeleteScheduleData, DeleteScheduleErrors, DeleteScheduleResponses, DeleteSecretData, DeleteSecretErrors, DeleteSecretResponses, GetBackupsData, GetBackupsErrors, GetBackupsResponses, GetClientData, GetClientErrors, GetClientResponses, GetClientsData, GetClientsErrors, GetClientsResponses, GetClusterData, GetClusterErrors, GetClusterResponses, GetClustersData, GetClustersResponses, GetCsvData, GetCsvErrors, GetCsvResponses, GetJsonData, GetJsonErrors, GetJsonResponses, GetMembersData, GetMembersErrors, GetMembersResponses, GetMetaData, GetMetaResponses, GetMonitoringClientsData, GetMonitoringClientsErrors, GetMonitoringClientsResponses, GetParametersData, GetParametersResponses, GetRestoreData, GetRestoreErrors, GetRestoreResponses, GetScheduleData, GetScheduleErrors, GetScheduleResponses, GetSecretsData, GetSecretsErrors, GetSecretsResponses, GetSecureConnectivityStatusData, GetSecureConnectivityStatusErrors, GetSecureConnectivityStatusResponses, RestoreFromBackupData, RestoreFromBackupErrors, RestoreFromBackupResponses, RotateMonitoringClientPasswordData, RotateMonitoringClientPasswordErrors, RotateMonitoringClientPasswordResponses, TriggerFailoverData, TriggerFailoverErrors, TriggerFailoverResponses, UpdateClusterData, UpdateClusterEncryptionData, UpdateClusterEncryptionErrors, UpdateClusterEncryptionResponses, UpdateClusterErrors, UpdateClusterResponses, UpdateIpAllowlistData, UpdateIpAllowlistResponses, UpdateIpWhitelistData, UpdateIpWhitelistResponses, UpdateMembersData, UpdateMembersErrors, UpdateMembersResponses, UpdateScheduleData, UpdateScheduleErrors, UpdateScheduleResponses, UpdateSecretData, UpdateSecretErrors, UpdateSecretResponses, UpgradeClusterData, UpgradeClusterErrors, UpgradeClusterResponses, WakeData, WakeResponses } from './types.gen';
-import { zActivateMonitoringPath, zActivateMonitoringResponse, zActivateSecureConnectivityBody, zActivateSecureConnectivityPath, zActivateSecureConnectivityResponse, zCreateBackupPath, zCreateBackupResponse, zCreateClientBody, zCreateClientPath, zCreateClientResponse, zCreateClusterBody2, zCreateClusterResponse, zCreateMonitoringClientBody, zCreateMonitoringClientPath, zCreateMonitoringClientResponse, zCreateSecretBody2, zCreateSecretPath, zCreateSecretResponse, zDeactivateMonitoringPath, zDeactivateMonitoringResponse, zDeactivateSecureConnectivityPath, zDeactivateSecureConnectivityResponse, zDeleteBackupPath, zDeleteBackupResponse, zDeleteClientPath, zDeleteClientResponse, zDeleteClusterPath, zDeleteClusterResponse, zDeleteMemberPath, zDeleteMemberResponse, zDeleteMonitoringClientPath, zDeleteMonitoringClientResponse, zDeleteSchedulePath, zDeleteScheduleResponse, zDeleteSecretPath, zDeleteSecretResponse, zGetBackupsPath, zGetBackupsResponse, zGetClientPath, zGetClientResponse, zGetClientsPath, zGetClientsResponse, zGetClusterPath, zGetClusterResponse, zGetClustersResponse, zGetCsvResponse, zGetJsonResponse, zGetMembersResponse, zGetMetaResponse, zGetMonitoringClientsPath, zGetMonitoringClientsResponse, zGetParametersResponse, zGetRestorePath, zGetRestoreResponse, zGetSchedulePath, zGetScheduleResponse, zGetSecretsPath, zGetSecretsResponse, zGetSecureConnectivityStatusPath, zGetSecureConnectivityStatusResponse, zRestoreFromBackupPath, zRestoreFromBackupResponse, zRotateMonitoringClientPasswordPath, zRotateMonitoringClientPasswordResponse, zTriggerFailoverBody2, zTriggerFailoverPath, zTriggerFailoverResponse, zUpdateClusterBody2, zUpdateClusterEncryptionBody2, zUpdateClusterEncryptionPath, zUpdateClusterEncryptionResponse, zUpdateClusterPath, zUpdateClusterResponse, zUpdateIpAllowlistBody, zUpdateIpAllowlistPath, zUpdateIpAllowlistResponse, zUpdateIpWhitelistBody, zUpdateIpWhitelistPath, zUpdateIpWhitelistResponse, zUpdateMembersBody, zUpdateMembersPath, zUpdateMembersResponse, zUpdateScheduleBody, zUpdateSchedulePath, zUpdateScheduleResponse, zUpdateSecretBody2, zUpdateSecretPath, zUpdateSecretResponse, zUpgradeClusterPath, zUpgradeClusterResponse, zWakePath, zWakeResponse } from './zod.gen';
+import type { ActivateMonitoringData, ActivateMonitoringErrors, ActivateMonitoringResponses, ActivateSecureConnectivityData, ActivateSecureConnectivityErrors, ActivateSecureConnectivityResponses, CreateBackupData, CreateBackupErrors, CreateBackupResponses, CreateClientData, CreateClientErrors, CreateClientResponses, CreateClusterData, CreateClusterErrors, CreateClusterResponses, CreateMonitoringClientData, CreateMonitoringClientErrors, CreateMonitoringClientResponses, CreateSecretData, CreateSecretErrors, CreateSecretResponses, DeactivateMonitoringData, DeactivateMonitoringErrors, DeactivateMonitoringResponses, DeactivateSecureConnectivityData, DeactivateSecureConnectivityErrors, DeactivateSecureConnectivityResponses, DeleteBackupData, DeleteBackupErrors, DeleteBackupResponses, DeleteClientData, DeleteClientErrors, DeleteClientResponses, DeleteClusterData, DeleteClusterErrors, DeleteClusterResponses, DeleteExternalIdpData, DeleteExternalIdpErrors, DeleteExternalIdpResponses, DeleteMemberData, DeleteMemberErrors, DeleteMemberResponses, DeleteMonitoringClientData, DeleteMonitoringClientErrors, DeleteMonitoringClientResponses, DeleteScheduleData, DeleteScheduleErrors, DeleteScheduleResponses, DeleteSecretData, DeleteSecretErrors, DeleteSecretResponses, GetBackupsData, GetBackupsErrors, GetBackupsResponses, GetClientData, GetClientErrors, GetClientResponses, GetClientsData, GetClientsErrors, GetClientsResponses, GetClusterData, GetClusterErrors, GetClusterResponses, GetClustersData, GetClustersResponses, GetCsvData, GetCsvErrors, GetCsvResponses, GetExternalIdpData, GetExternalIdpErrors, GetExternalIdpResponses, GetJsonData, GetJsonErrors, GetJsonResponses, GetMembersData, GetMembersErrors, GetMembersResponses, GetMetaData, GetMetaResponses, GetMonitoringClientsData, GetMonitoringClientsErrors, GetMonitoringClientsResponses, GetParametersData, GetParametersResponses, GetRestoreData, GetRestoreErrors, GetRestoreResponses, GetScheduleData, GetScheduleErrors, GetScheduleResponses, GetSecretsData, GetSecretsErrors, GetSecretsResponses, GetSecureConnectivityStatusData, GetSecureConnectivityStatusErrors, GetSecureConnectivityStatusResponses, ListExternalIdpsData, ListExternalIdpsErrors, ListExternalIdpsResponses, PatchExternalIdpData, PatchExternalIdpErrors, PatchExternalIdpResponses, PutExternalIdpCredentialData, PutExternalIdpCredentialErrors, PutExternalIdpCredentialResponses, PutExternalIdpData, PutExternalIdpErrors, PutExternalIdpResponses, RestoreFromBackupData, RestoreFromBackupErrors, RestoreFromBackupResponses, RotateMonitoringClientPasswordData, RotateMonitoringClientPasswordErrors, RotateMonitoringClientPasswordResponses, TriggerFailoverData, TriggerFailoverErrors, TriggerFailoverResponses, UpdateClusterData, UpdateClusterEncryptionData, UpdateClusterEncryptionErrors, UpdateClusterEncryptionResponses, UpdateClusterErrors, UpdateClusterResponses, UpdateIpAllowlistData, UpdateIpAllowlistResponses, UpdateIpWhitelistData, UpdateIpWhitelistResponses, UpdateMembersData, UpdateMembersErrors, UpdateMembersResponses, UpdateScheduleData, UpdateScheduleErrors, UpdateScheduleResponses, UpdateSecretData, UpdateSecretErrors, UpdateSecretResponses, UpgradeClusterData, UpgradeClusterErrors, UpgradeClusterResponses, WakeData, WakeResponses } from './types.gen';
+import { zActivateMonitoringPath, zActivateMonitoringResponse, zActivateSecureConnectivityBody, zActivateSecureConnectivityPath, zActivateSecureConnectivityResponse, zCreateBackupPath, zCreateBackupResponse, zCreateClientBody, zCreateClientPath, zCreateClientResponse, zCreateClusterBody2, zCreateClusterResponse, zCreateMonitoringClientBody, zCreateMonitoringClientPath, zCreateMonitoringClientResponse, zCreateSecretBody2, zCreateSecretPath, zCreateSecretResponse, zDeactivateMonitoringPath, zDeactivateMonitoringResponse, zDeactivateSecureConnectivityPath, zDeactivateSecureConnectivityResponse, zDeleteBackupPath, zDeleteBackupResponse, zDeleteClientPath, zDeleteClientResponse, zDeleteClusterPath, zDeleteClusterResponse, zDeleteExternalIdpPath, zDeleteExternalIdpResponse, zDeleteMemberPath, zDeleteMemberResponse, zDeleteMonitoringClientPath, zDeleteMonitoringClientResponse, zDeleteSchedulePath, zDeleteScheduleResponse, zDeleteSecretPath, zDeleteSecretResponse, zGetBackupsPath, zGetBackupsResponse, zGetClientPath, zGetClientResponse, zGetClientsPath, zGetClientsResponse, zGetClusterPath, zGetClusterResponse, zGetClustersResponse, zGetCsvResponse, zGetExternalIdpPath, zGetExternalIdpResponse, zGetJsonResponse, zGetMembersResponse, zGetMetaResponse, zGetMonitoringClientsPath, zGetMonitoringClientsResponse, zGetParametersResponse, zGetRestorePath, zGetRestoreResponse, zGetSchedulePath, zGetScheduleResponse, zGetSecretsPath, zGetSecretsResponse, zGetSecureConnectivityStatusPath, zGetSecureConnectivityStatusResponse, zListExternalIdpsPath, zListExternalIdpsResponse, zPatchExternalIdpBody, zPatchExternalIdpPath, zPatchExternalIdpResponse, zPutExternalIdpBody, zPutExternalIdpCredentialBody, zPutExternalIdpCredentialPath, zPutExternalIdpCredentialResponse, zPutExternalIdpPath, zPutExternalIdpResponse, zRestoreFromBackupPath, zRestoreFromBackupResponse, zRotateMonitoringClientPasswordPath, zRotateMonitoringClientPasswordResponse, zTriggerFailoverBody2, zTriggerFailoverPath, zTriggerFailoverResponse, zUpdateClusterBody2, zUpdateClusterEncryptionBody2, zUpdateClusterEncryptionPath, zUpdateClusterEncryptionResponse, zUpdateClusterPath, zUpdateClusterResponse, zUpdateIpAllowlistBody, zUpdateIpAllowlistPath, zUpdateIpAllowlistResponse, zUpdateIpWhitelistBody, zUpdateIpWhitelistPath, zUpdateIpWhitelistResponse, zUpdateMembersBody, zUpdateMembersPath, zUpdateMembersResponse, zUpdateScheduleBody, zUpdateSchedulePath, zUpdateScheduleResponse, zUpdateSecretBody2, zUpdateSecretPath, zUpdateSecretResponse, zUpgradeClusterPath, zUpgradeClusterResponse, zWakePath, zWakeResponse } from './zod.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -198,10 +198,10 @@ export const getSchedule = <ThrowOnError extends boolean = true>(options: Option
 
 /**
  * Creates or replaces the backup schedule of your Camunda cluster, so backups
- * are taken automatically instead of on demand. A cluster has at most one
- * schedule: an existing one is replaced rather than added to. Scheduled
- * backups are retained separately from manual ones — once the retention limit
- * is reached, the oldest scheduled backup is removed.
+ * are taken automatically instead of on demand. The existing schedule is
+ * replaced rather than a second one added. Scheduled backups are retained
+ * separately from manual ones — once the retention limit is reached, the
+ * oldest scheduled backup is removed.
  */
 export const updateSchedule = <ThrowOnError extends boolean = true>(options: Options<UpdateScheduleData, ThrowOnError>): RequestResult<UpdateScheduleResponses, UpdateScheduleErrors, ThrowOnError> => (options.client ?? client).put<UpdateScheduleResponses, UpdateScheduleErrors, ThrowOnError>({
     requestValidator: async (data) => await z.object({
@@ -344,6 +344,117 @@ export const updateClusterEncryption = <ThrowOnError extends boolean = true>(opt
     responseValidator: async (data) => await zUpdateClusterEncryptionResponse.parseAsync(data),
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/clusters/{clusterUuid}/encryption',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Lists the external identity providers of a cluster. A cluster has at
+ * most one.
+ */
+export const listExternalIdps = <ThrowOnError extends boolean = true>(options: Options<ListExternalIdpsData, ThrowOnError>): RequestResult<ListExternalIdpsResponses, ListExternalIdpsErrors, ThrowOnError> => (options.client ?? client).get<ListExternalIdpsResponses, ListExternalIdpsErrors, ThrowOnError>({
+    requestValidator: async (data) => await z.object({
+        body: z.never().optional(),
+        path: zListExternalIdpsPath,
+        query: z.never().optional()
+    }).parseAsync(data),
+    responseValidator: async (data) => await zListExternalIdpsResponse.parseAsync(data),
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/clusters/{clusterUuid}/external-idps',
+    ...options
+});
+
+/**
+ * Deletes an external identity provider: its settings, its entry on the
+ * cluster and its client secret.
+ */
+export const deleteExternalIdp = <ThrowOnError extends boolean = true>(options: Options<DeleteExternalIdpData, ThrowOnError>): RequestResult<DeleteExternalIdpResponses, DeleteExternalIdpErrors, ThrowOnError> => (options.client ?? client).delete<DeleteExternalIdpResponses, DeleteExternalIdpErrors, ThrowOnError>({
+    requestValidator: async (data) => await z.object({
+        body: z.never().optional(),
+        path: zDeleteExternalIdpPath,
+        query: z.never().optional()
+    }).parseAsync(data),
+    responseValidator: async (data) => await zDeleteExternalIdpResponse.parseAsync(data),
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/clusters/{clusterUuid}/external-idps/{name}',
+    ...options
+});
+
+/**
+ * Gets an external identity provider. The client secret is never returned.
+ */
+export const getExternalIdp = <ThrowOnError extends boolean = true>(options: Options<GetExternalIdpData, ThrowOnError>): RequestResult<GetExternalIdpResponses, GetExternalIdpErrors, ThrowOnError> => (options.client ?? client).get<GetExternalIdpResponses, GetExternalIdpErrors, ThrowOnError>({
+    requestValidator: async (data) => await z.object({
+        body: z.never().optional(),
+        path: zGetExternalIdpPath,
+        query: z.never().optional()
+    }).parseAsync(data),
+    responseValidator: async (data) => await zGetExternalIdpResponse.parseAsync(data),
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/clusters/{clusterUuid}/external-idps/{name}',
+    ...options
+});
+
+/**
+ * Changes fields of an external identity provider. A field that is not given
+ * keeps its value. An array replaces the whole array. A change to `enabled`
+ * alone does not run the issuer discovery check. To enable the provider, a
+ * secret must be stored.
+ */
+export const patchExternalIdp = <ThrowOnError extends boolean = true>(options: Options<PatchExternalIdpData, ThrowOnError>): RequestResult<PatchExternalIdpResponses, PatchExternalIdpErrors, ThrowOnError> => (options.client ?? client).patch<PatchExternalIdpResponses, PatchExternalIdpErrors, ThrowOnError>({
+    requestValidator: async (data) => await z.object({
+        body: zPatchExternalIdpBody,
+        path: zPatchExternalIdpPath,
+        query: z.never().optional()
+    }).parseAsync(data),
+    responseValidator: async (data) => await zPatchExternalIdpResponse.parseAsync(data),
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/clusters/{clusterUuid}/external-idps/{name}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Creates or replaces the external identity provider of a cluster. A cluster
+ * has at most one provider. When `credential` is given, the secret is written
+ * first and the provider is saved after. To enable the provider, a secret
+ * must be stored, or `credential` must be given.
+ */
+export const putExternalIdp = <ThrowOnError extends boolean = true>(options: Options<PutExternalIdpData, ThrowOnError>): RequestResult<PutExternalIdpResponses, PutExternalIdpErrors, ThrowOnError> => (options.client ?? client).put<PutExternalIdpResponses, PutExternalIdpErrors, ThrowOnError>({
+    requestValidator: async (data) => await z.object({
+        body: zPutExternalIdpBody,
+        path: zPutExternalIdpPath,
+        query: z.never().optional()
+    }).parseAsync(data),
+    responseValidator: async (data) => await zPutExternalIdpResponse.parseAsync(data),
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/clusters/{clusterUuid}/external-idps/{name}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Replaces the client secret of an external identity provider. The cluster
+ * restarts its pods to read the new secret.
+ */
+export const putExternalIdpCredential = <ThrowOnError extends boolean = true>(options: Options<PutExternalIdpCredentialData, ThrowOnError>): RequestResult<PutExternalIdpCredentialResponses, PutExternalIdpCredentialErrors, ThrowOnError> => (options.client ?? client).put<PutExternalIdpCredentialResponses, PutExternalIdpCredentialErrors, ThrowOnError>({
+    requestValidator: async (data) => await z.object({
+        body: zPutExternalIdpCredentialBody,
+        path: zPutExternalIdpCredentialPath,
+        query: z.never().optional()
+    }).parseAsync(data),
+    responseValidator: async (data) => await zPutExternalIdpCredentialResponse.parseAsync(data),
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/clusters/{clusterUuid}/external-idps/{name}/credential',
     ...options,
     headers: {
         'Content-Type': 'application/json',
