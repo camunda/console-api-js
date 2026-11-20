@@ -1,3 +1,10 @@
+# [0.3.0](https://github.com/camunda/console-api-js/compare/v0.2.0...v0.3.0) (2026-11-20)
+
+
+### Features
+
+* add external identity provider operations ([#28](https://github.com/camunda/console-api-js/issues/28)) ([a49cb1f](https://github.com/camunda/console-api-js/commit/a49cb1ff862786d03aaed450b49d20c2fd0523fd))
+
 # [0.2.0](https://github.com/camunda/console-api-js/compare/v0.1.1...v0.2.0) (2026-11-13)
 
 
