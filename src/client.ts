@@ -408,11 +408,14 @@ export class ConsoleClient {
         };
       }
       if (typeof validator !== 'function' || mode === 'strict') {
-        if (side !== 'request' || typeof validator !== 'function') return validator;
-        const strict0 = validator as (data: unknown) => Promise<unknown>;
+        if (side !== 'request') return validator;
+        const strict0 =
+          typeof validator === 'function'
+            ? (validator as (data: unknown) => Promise<unknown>)
+            : undefined;
         return async (data: unknown) => {
           assertSafePathParams(operationId, (data as AnyRecord)?.path);
-          return strict0(data);
+          return strict0 ? strict0(data) : undefined;
         };
       }
       const strict = validator as (data: unknown) => Promise<unknown>;
@@ -458,9 +461,10 @@ export class ConsoleClient {
     // Read the operation's generated validators off a probe client (the operation spreads its
     // own defaults first, so a client-level validator would win over them), wrap them for the
     // configured modes, and pass the wrapped ones back in the real call.
-    const needsWrap = reqMode !== 'strict' || resMode !== 'strict';
+    // Always wrap: the request wrapper carries path-parameter safety in every mode,
+    // including strict/strict, so it must never be skipped.
     let validatorOverrides: AnyRecord = {};
-    if (needsWrap) {
+    {
       const probeHandler = (opts: AnyRecord) => {
         validatorOverrides = {
           requestValidator: wrapValidator('request', reqMode, opts.requestValidator),

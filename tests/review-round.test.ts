@@ -217,6 +217,19 @@ describe('unsafe path parameters are rejected before URL construction', () => {
     expect(err.message).toContain('dot segment');
     expect(calls.filter(isApiCall)).toHaveLength(0);
   });
+  it.each(['strict', 'req:strict,res:strict'])(
+    'rejects them when both validators are strict (%s)',
+    async (mode) => {
+      const { console, calls } = client(() => new Response(null, { status: 204 }), {
+        CAMUNDA_SDK_VALIDATION: mode,
+      });
+      const err = await console
+        .deleteExternalIdp({ clusterUuid: 'c1', name: '..' })
+        .catch((e) => e);
+      expect(err).toMatchObject({ name: 'ValidationSdkError', side: 'request' });
+      expect(calls.filter(isApiCall)).toHaveLength(0);
+    }
+  );
   it.each([[['..']], [['.']], [['']], [['a', '..']]])(
     'rejects an array path value %j, which the generated serializer would stringify raw',
     async (name) => {
